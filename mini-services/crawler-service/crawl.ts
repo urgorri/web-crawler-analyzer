@@ -271,8 +271,9 @@ async function main() {
       const batch = validUrls.slice(i, i + concurrency);
       const results = await Promise.allSettled(batch.map((url) => crawlPage(browser, url, config)));
       for (let j = 0; j < results.length; j++) {
-        if (results[j].status === "fulfilled") pages.push(results[j].value);
-        else { const msg = results[j].reason?.message ?? String(results[j].reason); errors.push(`${sanitize(batch[j])}: ${sanitize(msg)}`); }
+        const result = results[j];
+        if (result.status === "fulfilled") pages.push(result.value);
+        else { const msg = result.reason?.message ?? String(result.reason); errors.push(`${sanitize(batch[j])}: ${sanitize(msg)}`); }
       }
     }
   } finally {
