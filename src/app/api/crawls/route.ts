@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { spawn } from "child_process";
-import { writeFile, readFile, unlink } from "fs/promises";
+import { writeFile, readFile, unlink, access } from "fs/promises";
 import path from "path";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -134,9 +134,18 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
     console.log(`[API] Starting crawl ${crawlId} for ${urls.length} URL(s)`);
 
     // Write input and prepare output file
-    const crawlScript = path.join(process.cwd(), "mini-services/crawler-service/crawl.ts");
+    const crawlerServiceDir = path.join(process.cwd(), "mini-services/crawler-service");
+    const crawlBuildScript = path.join(crawlerServiceDir, "dist/crawl.js");
+    const crawlTsScript = path.join(crawlerServiceDir, "crawl.ts");
     const outputFile = path.join("/tmp", `crawl-${crawlId}-out.json`);
     const errFile = path.join("/tmp", `crawl-${crawlId}-err.log`);
+
+    let runnerCommand = `node '${crawlBuildScript}'`;
+    try {
+      await access(crawlBuildScript);
+    } catch {
+      runnerCommand = `npx --yes tsx '${crawlTsScript}'`;
+    }
 
     // Use nohup + detached spawn to fully detach the child from Next.js process
     const child = spawn(
@@ -144,7 +153,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
       [
         "sh",
         "-c",
-        `CRAWLER_INPUT="$(cat '${tmpInput}')" bun run '${crawlScript}' > '${outputFile}' 2>'${errFile}'; echo $? > '${outputFile}.exit'`,
+        `CRAWLER_INPUT="$(cat '${tmpInput}')" ${runnerCommand} > '${outputFile}' 2>'${errFile}'; echo $? > '${outputFile}.exit'`,
       ],
       { detached: true, stdio: "ignore", env: { ...process.env } },
     );
