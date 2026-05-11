@@ -182,12 +182,25 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
 
     let command = process.execPath;
     let args = [crawlBuildScript];
+    const isProduction = process.env.NODE_ENV === "production";
+    const allowTsFallback = process.env.ALLOW_TS_CRAWLER_FALLBACK === "true";
 
     try {
       await access(crawlBuildScript);
     } catch {
-      command = "npx";
-      args = ["--yes", "tsx", crawlTsScript];
+      if (isProduction || !allowTsFallback) {
+        const message =
+          "Infrastructure error: missing required crawler build artifact at mini-services/crawler-service/dist/crawl.js. Run `npm --prefix mini-services/crawler-service run build` before starting Next.";
+        logError("spawn", message);
+        await updateCrawlError("spawn", message, "failed");
+        return;
+      }
+
+      command = path.join(process.cwd(), "node_modules", ".bin", "tsx");
+      args = [crawlTsScript];
+      warnings.push(
+        "Using development TypeScript fallback for crawler execution (ALLOW_TS_CRAWLER_FALLBACK=true).",
+      );
     }
 
     // Stage: spawn - launching the crawler subprocess

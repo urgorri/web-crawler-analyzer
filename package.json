@@ -5,7 +5,8 @@
   "scripts": {
     "postinstall": "prisma generate",
     "predev": "prisma generate",
-    "prestart": "prisma generate",
+    "prestart": "prisma generate && npm --prefix mini-services/crawler-service run build",
+    "prebuild": "npm --prefix mini-services/crawler-service run build",
     "dev": "next dev -p 3000",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_ENV=production node .next/standalone/server.js 2>&1 | tee server.log",
