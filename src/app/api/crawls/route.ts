@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { spawn } from "child_process";
-import { writeFile, readFile, unlink, access } from "fs/promises";
+import { access } from "fs/promises";
+import { createWriteStream } from "fs";
+import os from "os";
 import path from "path";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -127,64 +129,80 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
       },
     });
 
-    // Write payload to temp file
-    const tmpInput = path.join("/tmp", `crawl-${crawlId}-in.json`);
-    await writeFile(tmpInput, payload);
-
     console.log(`[API] Starting crawl ${crawlId} for ${urls.length} URL(s)`);
 
-    // Write input and prepare output file
     const crawlerServiceDir = path.join(process.cwd(), "mini-services/crawler-service");
     const crawlBuildScript = path.join(crawlerServiceDir, "dist/crawl.js");
     const crawlTsScript = path.join(crawlerServiceDir, "crawl.ts");
-    const outputFile = path.join("/tmp", `crawl-${crawlId}-out.json`);
-    const errFile = path.join("/tmp", `crawl-${crawlId}-err.log`);
+    const tmpDir = os.tmpdir();
+    const stdoutLogFile = path.join(tmpDir, `crawl-${crawlId}-stdout.log`);
+    const stderrLogFile = path.join(tmpDir, `crawl-${crawlId}-stderr.log`);
 
-    let runnerCommand = `node '${crawlBuildScript}'`;
+    let command = process.execPath;
+    let args = [crawlBuildScript];
+
     try {
       await access(crawlBuildScript);
     } catch {
-      runnerCommand = `npx --yes tsx '${crawlTsScript}'`;
+      command = "npx";
+      args = ["--yes", "tsx", crawlTsScript];
     }
 
-    // Use nohup + detached spawn to fully detach the child from Next.js process
-    const child = spawn(
-      "nohup",
-      [
-        "sh",
-        "-c",
-        `CRAWLER_INPUT="$(cat '${tmpInput}')" ${runnerCommand} > '${outputFile}' 2>'${errFile}'; echo $? > '${outputFile}.exit'`,
-      ],
-      { detached: true, stdio: "ignore", env: { ...process.env } },
-    );
-    child.unref();
+    const child = spawn(command, args, {
+      cwd: crawlerServiceDir,
+      detached: true,
+      env: {
+        ...process.env,
+        CRAWLER_INPUT: payload,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
 
-    // Poll for completion
-    const timeoutMs = Math.max(
-      (config.timeout ?? 30000) * urls.length + 60000,
-      120000,
-    );
-    const startTime = Date.now();
-    let completed = false;
+    const stdoutLogStream = createWriteStream(stdoutLogFile, { flags: "a" });
+    const stderrLogStream = createWriteStream(stderrLogFile, { flags: "a" });
 
-    while (Date.now() - startTime < timeoutMs) {
-      await new Promise((r) => setTimeout(r, 3000));
+    let stdoutBuffer = "";
+    let stderrBuffer = "";
 
-      // Check if exit code file exists
-      try {
-        await readFile(`${outputFile}.exit`, "utf-8");
-        completed = true;
-        break;
-      } catch {
-        // Not done yet, continue polling
-      }
+    child.stdout?.on("data", (chunk) => {
+      const text = chunk.toString();
+      stdoutBuffer += text;
+      stdoutLogStream.write(chunk);
+    });
+
+    child.stderr?.on("data", (chunk) => {
+      const text = chunk.toString();
+      stderrBuffer += text;
+      stderrLogStream.write(chunk);
+      console.error(`[API] Crawl ${crawlId} stderr:`, text.trim());
+    });
+
+    const timeoutMs = Math.max((config.timeout ?? 30000) * urls.length + 60000, 120000);
+
+    const exitCode = await new Promise<number>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        child.kill("SIGTERM");
+        reject(new Error("Crawl subprocess timed out"));
+      }, timeoutMs);
+
+      child.on("error", (err) => {
+        clearTimeout(timeout);
+        reject(err);
+      });
+
+      child.on("close", (code) => {
+        clearTimeout(timeout);
+        resolve(code ?? 1);
+      });
+    });
+
+    stdoutLogStream.end();
+    stderrLogStream.end();
+
+    if (exitCode !== 0) {
+      throw new Error(`Crawler exited with code ${exitCode}. ${stderrBuffer.substring(0, 500)}`);
     }
 
-    if (!completed) {
-      throw new Error("Crawl subprocess timed out");
-    }
-
-    // Read result
     let crawlResult: {
       status: string;
       pages: Array<Record<string, unknown>>;
@@ -194,22 +212,10 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
     };
 
     try {
-      const resultStr = await readFile(outputFile, "utf-8");
-      crawlResult = JSON.parse(resultStr);
+      crawlResult = JSON.parse(stdoutBuffer);
     } catch {
-      // Read error log if available
-      try {
-        const errContent = await readFile(errFile, "utf-8");
-        console.error(`[API] Crawl ${crawlId} stderr:`, errContent.substring(0, 500));
-      } catch {}
-      throw new Error("Crawler process did not produce valid output");
+      throw new Error("Crawler process did not produce valid JSON output");
     }
-
-    // Clean up temp files
-    try { await unlink(tmpInput); } catch {}
-    try { await unlink(outputFile); } catch {}
-    try { await unlink(errFile); } catch {}
-    try { await unlink(`${outputFile}.exit`); } catch {}
 
     // Store pages
     for (const page of crawlResult.pages) {
