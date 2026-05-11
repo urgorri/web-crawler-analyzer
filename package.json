@@ -3,22 +3,14 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "postinstall": "prisma generate",
-    "predev": "prisma generate && DATABASE_URL=${DATABASE_URL:-file:${PWD}/db/custom.db} prisma db push",
-    "prestart": "prisma generate && DATABASE_URL=${DATABASE_URL:-file:${PWD}/db/custom.db} prisma db push && npm --prefix mini-services/crawler-service run build",
     "prebuild": "npm --prefix mini-services/crawler-service run build",
     "dev": "next dev -p 3000",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_ENV=production node .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
-    "db:push": "DATABASE_URL=${DATABASE_URL:-file:${PWD}/db/custom.db} prisma db push",
-    "db:generate": "prisma generate",
-    "db:migrate": "DATABASE_URL=${DATABASE_URL:-file:${PWD}/db/custom.db} prisma migrate dev",
-    "db:reset": "DATABASE_URL=${DATABASE_URL:-file:${PWD}/db/custom.db} prisma migrate reset",
-    "db:init": "mkdir -p db && DATABASE_URL=${DATABASE_URL:-file:${PWD}/db/custom.db} prisma db push"
+    "prestart": "npm --prefix mini-services/crawler-service run build"
   },
   "dependencies": {
-    "@prisma/client": "^6.11.1",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-collapsible": "^1.1.11",
@@ -35,7 +27,6 @@
     "lucide-react": "^0.525.0",
     "next": "^16.1.1",
     "playwright": "^1.59.1",
-    "prisma": "^6.11.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-syntax-highlighter": "^15.6.1",

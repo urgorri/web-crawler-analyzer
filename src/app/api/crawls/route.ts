@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { createCrawl, listCrawls, updateCrawl } from "@/lib/crawl-storage";
 import { spawn } from "child_process";
 import { access } from "fs/promises";
 import { createWriteStream } from "fs";
@@ -35,9 +35,7 @@ type ErrorStage = "spawn" | "poll" | "parse" | "persist";
 
 export async function GET() {
   try {
-    const crawls = await db.crawl.findMany({
-      orderBy: { createdAt: "desc" },
-    });
+    const crawls = await listCrawls();
 
     const serialized = crawls.map((c) => ({
       id: c.id,
@@ -46,8 +44,8 @@ export async function GET() {
       seedCount: c.seedCount,
       pageCount: c.pageCount,
       errorCount: c.errorCount,
-      startedAt: c.startedAt.toISOString(),
-      completedAt: c.completedAt?.toISOString() ?? null,
+      startedAt: c.startedAt,
+      completedAt: c.completedAt,
     }));
 
     return NextResponse.json(serialized);
@@ -101,15 +99,9 @@ export async function POST(request: NextRequest) {
     const maxPages = config.maxPages ?? 50;
     const urlsToCrawl = validUrls.slice(0, maxPages);
 
-    const crawl = await db.crawl.create({
-      data: {
-        name: `Crawl ${new Date().toISOString().slice(0, 19).replace("T", " ")}`,
-        status: "running",
-        urls: JSON.stringify(urlsToCrawl),
-        config: JSON.stringify(config),
-        engine: "playwright",
-        seedCount: urlsToCrawl.length,
-      },
+    const crawl = await createCrawl({
+      urls: urlsToCrawl,
+      config,
     });
 
     // Execute in background
@@ -144,14 +136,11 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
    */
   async function updateCrawlError(stage: ErrorStage, message: string, terminalStatus: "failed" | "partial") {
     try {
-      await db.crawl.update({
-        where: { id: crawlId },
-        data: {
-          status: terminalStatus,
-          errors: JSON.stringify([message]),
-          lastErrorStage: stage,
-          completedAt: new Date(),
-        },
+      await updateCrawl(crawlId, {
+        status: terminalStatus,
+        errors: [message],
+        lastErrorStage: stage,
+        completedAt: new Date().toISOString(),
       });
     } catch (dbErr) {
       console.error(`[API] Failed to update crawl error state (stage=${stage}):`, dbErr);
@@ -303,59 +292,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
       return;
     }
 
-    // Stage: persist - storing pages in database
-    for (const page of crawlResult.pages) {
-      try {
-        await db.page.create({
-          data: {
-            crawlId,
-            url: String(page.url),
-            finalUrl: String(page.final_url || null),
-            statusCode: Number(page.status_code) || null,
-            title: String(page.title || ""),
-            metaDescription: String(page.meta_description || ""),
-            canonical: String(page.canonical || ""),
-            robotsMeta: String(page.robots_meta || ""),
-            lang: String(page.lang || ""),
-            dir: String(page.dir || ""),
-            charset: String(page.charset || ""),
-            visibleText: String(page.visible_text || ""),
-            visibleTextRaw: String(page.visible_text_raw || ""),
-            wordCount: Number(page.word_count) || 0,
-            charCount: Number(page.char_count) || 0,
-            headings: page.headings ? JSON.stringify(page.headings) : null,
-            buttons: page.buttons?.length ? JSON.stringify(page.buttons) : null,
-            links: page.links ? JSON.stringify(page.links) : null,
-            forms: page.forms?.length ? JSON.stringify(page.forms) : null,
-            images: page.images?.length ? JSON.stringify(page.images) : null,
-            scripts: page.scripts?.length ? JSON.stringify(page.scripts) : null,
-            stylesheets: page.stylesheets?.length
-              ? JSON.stringify(page.stylesheets)
-              : null,
-            resources: page.resources?.length
-              ? JSON.stringify(page.resources)
-              : null,
-            network: page.network?.length ? JSON.stringify(page.network) : null,
-            structuredData: page.structured_data?.length
-              ? JSON.stringify(page.structured_data)
-              : null,
-            bodyClasses: page.body_classes?.length
-              ? JSON.stringify(page.body_classes)
-              : null,
-            htmlClasses: page.html_classes?.length
-              ? JSON.stringify(page.html_classes)
-              : null,
-            techEvidence: page.tech_evidence?.length
-              ? JSON.stringify(page.tech_evidence)
-              : null,
-            metaGenerator: String(page.meta_generator || ""),
-          },
-        });
-      } catch (dbErr) {
-        logError("persist", "DB store error", dbErr);
-        errors.push("DB store error");
-      }
-    }
+    // Stage: persist - storing pages in JSON output
 
     const allErrors = [...errors, ...(crawlResult.errors || [])];
     const allWarnings = [...warnings, ...(crawlResult.warnings || [])];
@@ -367,16 +304,14 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
     }
 
     try {
-      await db.crawl.update({
-        where: { id: crawlId },
-        data: {
-          status: terminalStatus,
-          pageCount: crawlResult.stats.success,
-          errorCount: allErrors.length,
-          errors: allErrors.length > 0 ? JSON.stringify(allErrors) : null,
-          warnings: allWarnings.length > 0 ? JSON.stringify(allWarnings) : null,
-          completedAt: new Date(),
-        },
+      await updateCrawl(crawlId, {
+        status: terminalStatus,
+        pageCount: crawlResult.stats.success,
+        errorCount: allErrors.length,
+        errors: allErrors,
+        warnings: allWarnings,
+        completedAt: new Date().toISOString(),
+        pages: crawlResult.pages,
       });
     } catch (dbErr) {
       logError("persist", "Failed to update crawl final status", dbErr);
@@ -393,14 +328,11 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
     
     // Wrap db.crawl.update in try/catch to prevent unhandled rejections
     try {
-      await db.crawl.update({
-        where: { id: crawlId },
-        data: {
-          status: "failed",
-          errors: JSON.stringify([message]),
-          lastErrorStage: "spawn",
-          completedAt: new Date(),
-        },
+      await updateCrawl(crawlId, {
+        status: "failed",
+        errors: [message],
+        lastErrorStage: "spawn",
+        completedAt: new Date().toISOString(),
       });
     } catch (dbErr) {
       console.error(`[API] Failed to update crawl status after error:`, dbErr);

@@ -1,0 +1,105 @@
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "fs/promises";
+import path from "path";
+import crypto from "crypto";
+
+export interface CrawlRecord {
+  id: string;
+  name: string;
+  status: "running" | "completed" | "failed" | "partial";
+  seedCount: number;
+  pageCount: number;
+  errorCount: number;
+  startedAt: string;
+  completedAt: string | null;
+  urls: string[];
+  config: Record<string, unknown> | null;
+  engine: string;
+  warnings: string[];
+  errors: string[];
+  lastErrorStage: string | null;
+  pages: Array<Record<string, unknown>>;
+}
+
+const outputDir = path.join(process.cwd(), "output");
+
+async function ensureOutputDir() {
+  await mkdir(outputDir, { recursive: true });
+}
+
+function crawlPath(id: string) {
+  return path.join(outputDir, `${id}.json`);
+}
+
+export async function createCrawl(input: { urls: string[]; config: Record<string, unknown> | null }) {
+  await ensureOutputDir();
+  const now = new Date().toISOString();
+  const id = crypto.randomUUID();
+  const record: CrawlRecord = {
+    id,
+    name: `Crawl ${now.slice(0, 19).replace("T", " ")}`,
+    status: "running",
+    seedCount: input.urls.length,
+    pageCount: 0,
+    errorCount: 0,
+    startedAt: now,
+    completedAt: null,
+    urls: input.urls,
+    config: input.config,
+    engine: "playwright",
+    warnings: [],
+    errors: [],
+    lastErrorStage: null,
+    pages: [],
+  };
+
+  await writeFile(crawlPath(id), JSON.stringify(record, null, 2), "utf8");
+  return record;
+}
+
+export async function getCrawl(id: string) {
+  try {
+    const file = await readFile(crawlPath(id), "utf8");
+    return JSON.parse(file) as CrawlRecord;
+  } catch {
+    return null;
+  }
+}
+
+export async function updateCrawl(id: string, patch: Partial<CrawlRecord>) {
+  const current = await getCrawl(id);
+  if (!current) return null;
+  const next = { ...current, ...patch };
+  await writeFile(crawlPath(id), JSON.stringify(next, null, 2), "utf8");
+  return next;
+}
+
+export async function listCrawls() {
+  await ensureOutputDir();
+  const entries = await readdir(outputDir);
+  const files = entries.filter((name) => name.endsWith(".json"));
+  const crawls: CrawlRecord[] = [];
+
+  for (const fileName of files) {
+    const fullPath = path.join(outputDir, fileName);
+    const [contents, fileStat] = await Promise.all([
+      readFile(fullPath, "utf8"),
+      stat(fullPath),
+    ]);
+    const parsed = JSON.parse(contents) as CrawlRecord;
+    crawls.push({
+      ...parsed,
+      startedAt: parsed.startedAt || fileStat.birthtime.toISOString(),
+    });
+  }
+
+  return crawls.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+}
+
+export async function deleteCrawl(id: string) {
+  try {
+    await rm(crawlPath(id));
+    return true;
+  } catch {
+    return false;
+  }
+}
