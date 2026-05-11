@@ -7,6 +7,10 @@ import os from "os";
 import path from "path";
 import { validateUrls, SSRF_ERROR_MESSAGES, formatValidationError } from "@/lib/ssrf-policy";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 interface CrawlConfig {

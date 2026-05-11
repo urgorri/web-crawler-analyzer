@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+
 // ─── GET /api/crawls/[id] — Get crawl detail with pages ───────────────────────
 
 export async function GET(
