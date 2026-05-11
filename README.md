@@ -90,7 +90,15 @@ npm --prefix mini-services/crawler-service run build
 npm --prefix mini-services/crawler-service run start
 ```
 
-En desarrollo, si no existe `dist/crawl.js`, la API usa `tsx` como fallback para ejecutar `crawl.ts`.
+### Contrato de setup y despliegue
+
+1. **Pipeline de build/deploy:** siempre se debe compilar `mini-services/crawler-service` **antes** de levantar Next.js.
+   - Este repositorio lo aplica con:
+     - `prebuild`: `npm --prefix mini-services/crawler-service run build`
+     - `prestart`: `prisma generate && npm --prefix mini-services/crawler-service run build`
+2. **Runtime de API en producción:** se ejecuta únicamente `mini-services/crawler-service/dist/crawl.js`.
+3. **Fallback TypeScript solo en desarrollo controlado:** la API usa `crawl.ts` únicamente si `ALLOW_TS_CRAWLER_FALLBACK=true` y `NODE_ENV` no es `production`.
+4. **Sin fallback silencioso:** si falta `dist/crawl.js` cuando es requerido, la API marca el crawl como fallo con error explícito de infraestructura (sin intento automático con `npx`).
 
 ## Flujo de crawl
 El flujo se mantiene desde `src/app/page.tsx` usando:
