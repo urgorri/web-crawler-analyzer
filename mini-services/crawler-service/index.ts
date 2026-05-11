@@ -29,7 +29,7 @@ interface PageResult {
   charset: string;
   meta_generator: string;
   visible_text: string;
-  visible_text_raw: string;
+  // visible_text_raw: string;
   word_count: number;
   char_count: number;
   headings: { h1: string[]; h2: string[]; h3: string[] };
@@ -253,7 +253,7 @@ async function crawlPage(browser: Browser, url: string, config: CrawlConfig): Pr
       lang: extracted.lang, dir: extracted.dir, charset: extracted.charset,
       meta_generator: extracted.meta_generator.substring(0, 500),
       visible_text: extracted.cleanText.substring(0, 500000),
-      visible_text_raw: extracted.rawText.substring(0, 1000000),
+      // visible_text_raw: extracted.rawText.substring(0, 1000000),
       word_count: extracted.cleanText.split(/\s+/).filter(Boolean).length,
       char_count: extracted.cleanText.length,
       headings: extracted.headings, buttons: extracted.buttons, links: extracted.links,

@@ -216,7 +216,7 @@ async function crawlPage(browser, url, config) {
             lang: extracted.lang, dir: extracted.dir, charset: extracted.charset,
             meta_generator: extracted.meta_generator.substring(0, 500),
             visible_text: extracted.cleanText.substring(0, 500000),
-            visible_text_raw: extracted.rawText.substring(0, 1000000),
+            // visible_text_raw: extracted.rawText.substring(0, 1000000),
             word_count: extracted.cleanText.split(/\s+/).filter(Boolean).length,
             char_count: extracted.cleanText.length,
             headings: extracted.headings, buttons: extracted.buttons, links: extracted.links,

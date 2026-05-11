@@ -13,7 +13,7 @@ export interface PageData {
   charset: string;
   meta_generator: string;
   visible_text: string;
-  visible_text_raw: string;
+  // visible_text_raw: string;
   word_count: number;
   char_count: number;
   headings: { h1: string[]; h2: string[]; h3: string[] };
