@@ -4,17 +4,18 @@
   "private": true,
   "scripts": {
     "postinstall": "prisma generate",
-    "predev": "prisma generate && prisma db push",
-    "prestart": "prisma generate && prisma db push && npm --prefix mini-services/crawler-service run build",
+    "predev": "prisma generate && DATABASE_URL=${DATABASE_URL:-file:${PWD}/db/custom.db} prisma db push",
+    "prestart": "prisma generate && DATABASE_URL=${DATABASE_URL:-file:${PWD}/db/custom.db} prisma db push && npm --prefix mini-services/crawler-service run build",
     "prebuild": "npm --prefix mini-services/crawler-service run build",
     "dev": "next dev -p 3000",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_ENV=production node .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
-    "db:push": "prisma db push",
+    "db:push": "DATABASE_URL=${DATABASE_URL:-file:${PWD}/db/custom.db} prisma db push",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:migrate": "DATABASE_URL=${DATABASE_URL:-file:${PWD}/db/custom.db} prisma migrate dev",
+    "db:reset": "DATABASE_URL=${DATABASE_URL:-file:${PWD}/db/custom.db} prisma migrate reset",
+    "db:init": "mkdir -p db && DATABASE_URL=${DATABASE_URL:-file:${PWD}/db/custom.db} prisma db push"
   },
   "dependencies": {
     "@prisma/client": "^6.11.1",
