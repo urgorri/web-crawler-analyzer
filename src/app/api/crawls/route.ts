@@ -49,7 +49,17 @@ export async function GET() {
     return NextResponse.json(serialized);
   } catch (error) {
     console.error("[API] Failed to list crawls:", error);
-    return NextResponse.json({ error: "Failed to fetch crawls" }, { status: 500 });
+
+    const errorMessage =
+      error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+
+    return NextResponse.json(
+      {
+        error: "Failed to fetch crawls",
+        details: errorMessage,
+      },
+      { status: 500 },
+    );
   }
 }
 
