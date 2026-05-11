@@ -1,5 +1,10 @@
 import { chromium } from "playwright";
 
+// ─── SSRF Policy Configuration ────────────────────────────────────────────────
+
+const ALLOW_PRIVATE_TARGETS = process.env.ALLOW_PRIVATE_TARGETS === 'true';
+const IS_DEV = process.env.NODE_ENV === 'development';
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CrawlConfig {
@@ -61,16 +66,42 @@ function sanitize(str: string): string {
   return r;
 }
 
+/**
+ * Check if a hostname is a private IP address or internal network resource.
+ * Consistent with src/lib/ssrf-policy.ts
+ */
 function isPrivateIp(hostname: string): boolean {
-  if (["localhost", "0.0.0.0", "127.0.0.1", "[::1]"].includes(hostname.toLowerCase())) return true;
-  const m = hostname.toLowerCase().match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (m) {
-    const [, a, b] = m.map(Number);
-    if (a === 10 || a === 127 || a === 0) return true;
+  const normalized = hostname.toLowerCase();
+  
+  // Check for localhost aliases
+  if (["localhost", "0.0.0.0", "127.0.0.1", "[::1]"].includes(normalized)) {
+    return true;
+  }
+  
+  // Check for IPv4 private ranges
+  const ipv4Match = normalized.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number);
+    
+    // 10.0.0.0/8
+    if (a === 10) return true;
+    
+    // 127.0.0.0/8 (loopback)
+    if (a === 127) return true;
+    
+    // 0.0.0.0/8 (this network)
+    if (a === 0) return true;
+    
+    // 172.16.0.0/12
     if (a === 172 && b >= 16 && b <= 31) return true;
+    
+    // 192.168.0.0/16
     if (a === 192 && b === 168) return true;
+    
+    // 169.254.0.0/16 (link-local)
     if (a === 169 && b === 254) return true;
   }
+  
   return false;
 }
 
@@ -249,10 +280,26 @@ async function main() {
   for (const url of urls) {
     try {
       const parsed = new URL(url);
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") { warnings.push(`Invalid scheme: ${sanitize(url)}`); continue; }
-      if (isPrivateIp(parsed.hostname)) { warnings.push(`Blocked: ${sanitize(url)}`); continue; }
+      
+      // Check protocol
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        warnings.push(`Invalid scheme: ${sanitize(url)}`);
+        continue;
+      }
+      
+      // Check for private/internal networks (unless explicitly allowed in dev)
+      if (!ALLOW_PRIVATE_TARGETS && isPrivateIp(parsed.hostname)) {
+        const blockReason = IS_DEV
+          ? `Blocked (private network, set ALLOW_PRIVATE_TARGETS=true to allow): ${sanitize(url)}`
+          : `Blocked (private network not allowed): ${sanitize(url)}`;
+        warnings.push(blockReason);
+        continue;
+      }
+      
       validUrls.push(url);
-    } catch { warnings.push(`Unparseable: ${sanitize(url)}`); }
+    } catch {
+      warnings.push(`Unparseable: ${sanitize(url)}`);
+    }
   }
 
   if (validUrls.length === 0) {
