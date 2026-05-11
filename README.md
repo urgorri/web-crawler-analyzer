@@ -35,11 +35,32 @@ Se estandarizó el lockfile de la raíz a **npm**:
 ## Scripts
 
 ```bash
+# Instalar dependencias y generar cliente Prisma (automático con postinstall)
+npm install
+
+# Desarrollo (predev ejecuta prisma generate automáticamente)
 npm run dev
+
+# Build y producción (prestart ejecuta prisma generate automáticamente)
 npm run build
 npm run start
+
+# Comandos de base de datos
 npm run db:push
+npm run db:generate
+npm run db:migrate
+npm run db:reset
 ```
+
+### Nota importante sobre Prisma
+
+Después de instalar el proyecto por primera vez o después de cambiar el schema de Prisma, asegúrate de generar el cliente:
+
+```bash
+npx prisma generate
+```
+
+Los scripts `postinstall`, `predev` y `prestart` ejecutan automáticamente `prisma generate`, pero en algunos entornos puede ser necesario ejecutarlo explícitamente.
 
 ### Crawler service (Node)
 
