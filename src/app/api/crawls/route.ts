@@ -18,6 +18,15 @@ interface CrawlConfig {
   userAgent?: string;
 }
 
+// ─── Error Stages ──────────────────────────────────────────────────────────────
+// Stages for tracking where errors occur in the crawl lifecycle
+type ErrorStage = "spawn" | "poll" | "parse" | "persist";
+
+// ─── Terminal States ───────────────────────────────────────────────────────────
+// - completed: All pages crawled successfully (status from crawler = "completed")
+// - partial: Some pages crawled but not all (status = "partial" or success < total)
+// - failed: Crawl failed before completing any meaningful work (timeout, crash, etc.)
+
 // ─── GET /api/crawls ──────────────────────────────────────────────────────────
 
 export async function GET() {
@@ -116,6 +125,39 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
   const errors: string[] = [];
   const warnings: string[] = [];
 
+  /**
+   * Helper to update crawl status with structured error context
+   */
+  async function updateCrawlError(stage: ErrorStage, message: string, terminalStatus: "failed" | "partial") {
+    try {
+      await db.crawl.update({
+        where: { id: crawlId },
+        data: {
+          status: terminalStatus,
+          errors: JSON.stringify([message]),
+          lastErrorStage: stage,
+          completedAt: new Date(),
+        },
+      });
+    } catch (dbErr) {
+      console.error(`[API] Failed to update crawl error state (stage=${stage}):`, dbErr);
+    }
+  }
+
+  /**
+   * Helper to log errors with structured context
+   */
+  function logError(stage: ErrorStage, message: string, error?: unknown) {
+    console.error(JSON.stringify({
+      event: "crawl_error",
+      crawlId,
+      stage,
+      message,
+      error: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString(),
+    }));
+  }
+
   try {
     const payload = JSON.stringify({
       urls,
@@ -148,6 +190,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
       args = ["--yes", "tsx", crawlTsScript];
     }
 
+    // Stage: spawn - launching the crawler subprocess
     const child = spawn(command, args, {
       cwd: crawlerServiceDir,
       detached: true,
@@ -179,30 +222,43 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
 
     const timeoutMs = Math.max((config.timeout ?? 30000) * urls.length + 60000, 120000);
 
-    const exitCode = await new Promise<number>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        child.kill("SIGTERM");
-        reject(new Error("Crawl subprocess timed out"));
-      }, timeoutMs);
+    // Stage: poll - waiting for subprocess to complete
+    let exitCode: number;
+    try {
+      exitCode = await new Promise<number>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          child.kill("SIGTERM");
+          reject(new Error("Crawl subprocess timed out"));
+        }, timeoutMs);
 
-      child.on("error", (err) => {
-        clearTimeout(timeout);
-        reject(err);
-      });
+        child.on("error", (err) => {
+          clearTimeout(timeout);
+          reject(err);
+        });
 
-      child.on("close", (code) => {
-        clearTimeout(timeout);
-        resolve(code ?? 1);
+        child.on("close", (code) => {
+          clearTimeout(timeout);
+          resolve(code ?? 1);
+        });
       });
-    });
+    } catch (pollError) {
+      const message = pollError instanceof Error ? pollError.message : "Unknown polling error";
+      logError("poll", message, pollError);
+      await updateCrawlError("poll", message, "failed");
+      return;
+    }
 
     stdoutLogStream.end();
     stderrLogStream.end();
 
     if (exitCode !== 0) {
-      throw new Error(`Crawler exited with code ${exitCode}. ${stderrBuffer.substring(0, 500)}`);
+      const message = `Crawler exited with code ${exitCode}. ${stderrBuffer.substring(0, 500)}`;
+      logError("poll", message);
+      await updateCrawlError("poll", message, "failed");
+      return;
     }
 
+    // Stage: parse - parsing JSON output from crawler
     let crawlResult: {
       status: string;
       pages: Array<Record<string, unknown>>;
@@ -213,11 +269,14 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
 
     try {
       crawlResult = JSON.parse(stdoutBuffer);
-    } catch {
-      throw new Error("Crawler process did not produce valid JSON output");
+    } catch (parseError) {
+      const message = "Crawler process did not produce valid JSON output";
+      logError("parse", message, parseError);
+      await updateCrawlError("parse", message, "failed");
+      return;
     }
 
-    // Store pages
+    // Stage: persist - storing pages in database
     for (const page of crawlResult.pages) {
       try {
         await db.page.create({
@@ -266,7 +325,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
           },
         });
       } catch (dbErr) {
-        console.error(`[API] DB error storing page:`, dbErr);
+        logError("persist", "DB store error", dbErr);
         errors.push("DB store error");
       }
     }
@@ -274,32 +333,51 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
     const allErrors = [...errors, ...(crawlResult.errors || [])];
     const allWarnings = [...warnings, ...(crawlResult.warnings || [])];
 
-    await db.crawl.update({
-      where: { id: crawlId },
-      data: {
-        status: crawlResult.status,
-        pageCount: crawlResult.stats.success,
-        errorCount: allErrors.length,
-        errors: allErrors.length > 0 ? JSON.stringify(allErrors) : null,
-        warnings: allWarnings.length > 0 ? JSON.stringify(allWarnings) : null,
-        completedAt: new Date(),
-      },
-    });
+    // Determine terminal status based on results
+    let terminalStatus: "completed" | "partial" = "completed";
+    if (crawlResult.status === "partial" || crawlResult.stats.success < crawlResult.stats.total) {
+      terminalStatus = "partial";
+    }
+
+    try {
+      await db.crawl.update({
+        where: { id: crawlId },
+        data: {
+          status: terminalStatus,
+          pageCount: crawlResult.stats.success,
+          errorCount: allErrors.length,
+          errors: allErrors.length > 0 ? JSON.stringify(allErrors) : null,
+          warnings: allWarnings.length > 0 ? JSON.stringify(allWarnings) : null,
+          completedAt: new Date(),
+        },
+      });
+    } catch (dbErr) {
+      logError("persist", "Failed to update crawl final status", dbErr);
+      // Best effort: already have partial data, mark as partial
+      await updateCrawlError("persist", "Failed to finalize crawl record", "partial");
+    }
 
     console.log(
-      `[API] Crawl ${crawlId} ${crawlResult.status}: ${crawlResult.stats.success} pages, ${allErrors.length} errors`,
+      `[API] Crawl ${crawlId} ${terminalStatus}: ${crawlResult.stats.success} pages, ${allErrors.length} errors`,
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-
-    await db.crawl.update({
-      where: { id: crawlId },
-      data: {
-        status: "failed",
-        errors: JSON.stringify([message]),
-        completedAt: new Date(),
-      },
-    });
+    logError("spawn", message, error);
+    
+    // Wrap db.crawl.update in try/catch to prevent unhandled rejections
+    try {
+      await db.crawl.update({
+        where: { id: crawlId },
+        data: {
+          status: "failed",
+          errors: JSON.stringify([message]),
+          lastErrorStage: "spawn",
+          completedAt: new Date(),
+        },
+      });
+    } catch (dbErr) {
+      console.error(`[API] Failed to update crawl status after error:`, dbErr);
+    }
 
     console.error(`[API] Crawl ${crawlId} failed:`, message);
   }
