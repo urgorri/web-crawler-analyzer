@@ -32,6 +32,27 @@ Se estandarizó el lockfile de la raíz a **npm**:
 
 > Nota: `mini-services/crawler-service` puede mantener su `bun.lock` histórico, pero su runtime/scripts ya están alineados a Node.
 
+## Security Policy: SSRF Protection
+
+This project implements a unified SSRF (Server-Side Request Forgery) protection policy to prevent attacks via malicious URL submissions. See **[docs/SSRF-POLICY.md](docs/SSRF-POLICY.md)** for complete documentation.
+
+### Quick Start
+
+```bash
+# Development with localhost access
+ALLOW_PRIVATE_TARGETS=true npm run dev
+
+# Production (default - blocks private networks)
+npm run start
+```
+
+### Key Features
+
+- ✅ Blocks private/internal IP ranges (10.x.x.x, 192.168.x.x, 172.16-31.x.x, localhost)
+- ✅ Consistent validation across API and crawler service
+- ✅ Clear error messages for rejected URLs
+- ✅ Environment-based override for development only
+
 ## Scripts
 
 ```bash

@@ -5,6 +5,7 @@ import { access } from "fs/promises";
 import { createWriteStream } from "fs";
 import os from "os";
 import path from "path";
+import { validateUrls, SSRF_ERROR_MESSAGES, formatValidationError } from "@/lib/ssrf-policy";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -52,26 +53,25 @@ export async function POST(request: NextRequest) {
 
     if (!urls || !Array.isArray(urls) || urls.length === 0) {
       return NextResponse.json(
-        { error: "Request must include a non-empty 'urls' array" },
+        { error: SSRF_ERROR_MESSAGES.NO_VALID_URLS },
         { status: 400 },
       );
     }
 
-    const validUrls: string[] = [];
-    for (const url of urls) {
-      try {
-        const parsed = new URL(url.trim());
-        if (parsed.protocol === "http:" || parsed.protocol === "https:") {
-          validUrls.push(url.trim());
-        }
-      } catch { /* skip */ }
-    }
+    // Apply SSRF protection policy - same validation as mini-services/crawler-service/crawl.ts
+    const { validUrls, rejections } = validateUrls(urls);
 
     if (validUrls.length === 0) {
+      const errorMessage = formatValidationError(rejections);
       return NextResponse.json(
-        { error: "No valid URLs. Only http/https allowed." },
+        { error: errorMessage || SSRF_ERROR_MESSAGES.NO_VALID_URLS },
         { status: 400 },
       );
+    }
+
+    // Log rejected URLs for debugging
+    if (rejections.length > 0) {
+      console.warn("[API] URLs rejected by SSRF policy:", rejections);
     }
 
     const config = rawConfig ?? {};
