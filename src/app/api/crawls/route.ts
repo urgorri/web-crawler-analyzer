@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createCrawl, listCrawls, updateCrawl } from "@/lib/crawl-storage";
 import { spawn } from "child_process";
-import { access } from "fs/promises";
+import { access, writeFile, rm } from "fs/promises";
 import { createWriteStream } from "fs";
 import os from "os";
 import path from "path";
@@ -233,6 +233,24 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
       const text = chunk.toString();
       stderrBuffer += text;
       stderrLogStream.write(chunk);
+
+      // Handle progress updates
+      const lines = text.split("\n");
+      for (const line of lines) {
+        if (line.startsWith("PROGRESS_UPDATE:")) {
+          try {
+            const progressData = JSON.parse(line.substring("PROGRESS_UPDATE:".length));
+            const progressFile = path.join(process.cwd(), "output", `${crawlId}.progress.json`);
+            writeFile(progressFile, JSON.stringify({
+              ...progressData,
+              updatedAt: new Date().toISOString()
+            })).catch(err => console.error("[API] Failed to write progress file:", err));
+          } catch (e) {
+            // Ignore parse errors for progress
+          }
+        }
+      }
+
       console.error(`[API] Crawl ${crawlId} stderr:`, text.trim());
     });
 
@@ -266,6 +284,10 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
 
     stdoutLogStream.end();
     stderrLogStream.end();
+
+    // Cleanup progress file
+    const progressFile = path.join(process.cwd(), "output", `${crawlId}.progress.json`);
+    rm(progressFile).catch(() => {});
 
     if (exitCode !== 0) {
       const message = `Crawler exited with code ${exitCode}. ${stderrBuffer.substring(0, 500)}`;
@@ -303,6 +325,23 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
       terminalStatus = "partial";
     }
 
+    // Transform snake_case from crawler to camelCase for frontend
+    const transformedPages = crawlResult.pages.map((page: any) => ({
+      ...page,
+      finalUrl: page.final_url,
+      statusCode: page.status_code,
+      metaDescription: page.meta_description,
+      robotsMeta: page.robots_meta,
+      metaGenerator: page.meta_generator,
+      visibleText: page.visible_text,
+      wordCount: page.word_count,
+      charCount: page.char_count,
+      structuredData: page.structured_data,
+      bodyClasses: page.body_classes,
+      htmlClasses: page.html_classes,
+      techEvidence: page.tech_evidence,
+    }));
+
     try {
       await updateCrawl(crawlId, {
         status: terminalStatus,
@@ -311,7 +350,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
         errors: allErrors,
         warnings: allWarnings,
         completedAt: new Date().toISOString(),
-        pages: crawlResult.pages,
+        pages: transformedPages,
       });
     } catch (dbErr) {
       logError("persist", "Failed to update crawl final status", dbErr);

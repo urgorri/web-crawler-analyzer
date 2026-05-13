@@ -319,8 +319,30 @@ async function main() {
       const results = await Promise.allSettled(batch.map((url) => crawlPage(browser, url, config)));
       for (let j = 0; j < results.length; j++) {
         const result = results[j];
-        if (result.status === "fulfilled") pages.push(result.value);
-        else { const msg = result.reason?.message ?? String(result.reason); errors.push(`${sanitize(batch[j])}: ${sanitize(msg)}`); }
+        if (result.status === "fulfilled") {
+          pages.push(result.value);
+          // Write progress to stderr for the parent to capture or directly to a file if we had the ID
+          // Since we don't have the crawl ID here directly in a clean way without changing many things,
+          // we can output progress objects to stdout/stderr that the parent can parse.
+          // But the parent is already capturing stdout for the final JSON.
+          // Let's use stderr for real-time progress updates in a specific format.
+          process.stderr.write(`PROGRESS_UPDATE:${JSON.stringify({
+            url: result.value.url,
+            title: result.value.title,
+            pageCount: pages.length,
+            errorCount: errors.length
+          })}\n`);
+        }
+        else {
+          const msg = result.reason?.message ?? String(result.reason);
+          errors.push(`${sanitize(batch[j])}: ${sanitize(msg)}`);
+          process.stderr.write(`PROGRESS_UPDATE:${JSON.stringify({
+            url: batch[j],
+            error: msg,
+            pageCount: pages.length,
+            errorCount: errors.length
+          })}\n`);
+        }
       }
     }
   } finally {
