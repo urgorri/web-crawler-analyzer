@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useState, useCallback, useEffect } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Play,
@@ -9,6 +9,10 @@ import {
   Loader2,
   Link2,
   AlertCircle,
+  FileText,
+  Globe,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -32,7 +36,15 @@ import {
 import { Separator } from '@/components/ui/separator';
 
 import { useCrawlerStore } from '@/lib/crawler-store';
-import { createCrawl, type CrawlConfig } from '@/lib/crawler-api';
+import { createCrawl, getCrawlProgress, type CrawlConfig } from '@/lib/crawler-api';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -51,6 +63,8 @@ export default function NewCrawlView() {
   const navigateTo = useCrawlerStore((s) => s.navigateTo);
 
   const [urls, setUrls] = useState('');
+  const [activeCrawlId, setActiveCrawlId] = useState<string | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [timeout, setTimeout_] = useState('30000');
   const [maxPages, setMaxPages] = useState('50');
@@ -69,14 +83,29 @@ export default function NewCrawlView() {
   const mutation = useMutation({
     mutationFn: (vars: { urls: string[]; config: CrawlConfig }) =>
       createCrawl(vars.urls, vars.config),
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success('Crawl started successfully!');
-      navigateTo('dashboard');
+      setActiveCrawlId(data.id);
+      setIsDialogOpen(true);
     },
     onError: (err: Error) => {
       toast.error(`Failed to start crawl: ${err.message}`);
     },
   });
+
+  const { data: progress } = useQuery({
+    queryKey: ['crawl-progress', activeCrawlId],
+    queryFn: () => getCrawlProgress(activeCrawlId!),
+    enabled: !!activeCrawlId && isDialogOpen,
+    refetchInterval: 1000,
+  });
+
+  useEffect(() => {
+    if (activeCrawlId && !progress && mutation.isSuccess && !mutation.isPending) {
+        // If progress is null and it's not the first load, it might have finished
+        // We can double check or just wait
+    }
+  }, [progress, activeCrawlId, mutation.isSuccess, mutation.isPending]);
 
   const handleSubmit = useCallback(() => {
     if (urlList.length === 0) {
@@ -267,6 +296,79 @@ export default function NewCrawlView() {
           </>
         )}
       </Button>
+
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        setIsDialogOpen(open);
+        if (!open) {
+          navigateTo('dashboard');
+        }
+      }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Crawl Progress</DialogTitle>
+            <DialogDescription>
+              We are analyzing your URLs. You can close this dialog; the crawl will continue in the background.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-6 py-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Progress</span>
+                <span className="font-medium">
+                  {progress ? Math.min(Math.round(((progress.pageCount + progress.errorCount) / urlList.length) * 100), 100) : 0}%
+                </span>
+              </div>
+              <Progress value={progress ? ((progress.pageCount + progress.errorCount) / urlList.length) * 100 : 0} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-lg border p-3">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <CheckCircle2 className="size-4 text-emerald-500" />
+                  Pages
+                </div>
+                <div className="mt-1 text-2xl font-bold">{progress?.pageCount ?? 0}</div>
+              </div>
+              <div className="rounded-lg border p-3">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <XCircle className="size-4 text-destructive" />
+                  Errors
+                </div>
+                <div className="mt-1 text-2xl font-bold">{progress?.errorCount ?? 0}</div>
+              </div>
+            </div>
+
+            {progress?.url && (
+              <div className="space-y-1.5">
+                <div className="text-xs font-semibold text-muted-foreground uppercase">Current/Last URL</div>
+                <div className="rounded-md bg-muted p-2 text-xs font-mono break-all truncate">
+                  {progress.url}
+                </div>
+                {progress.title && (
+                  <div className="text-xs text-muted-foreground italic truncate">
+                    &quot;{progress.title}&quot;
+                  </div>
+                )}
+                {progress.error && (
+                  <div className="text-xs text-destructive truncate">
+                    Error: {progress.error}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <Button onClick={() => {
+                setIsDialogOpen(false);
+                navigateTo('dashboard');
+              }}>
+                Go to Dashboard
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

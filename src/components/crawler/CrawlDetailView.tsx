@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -9,6 +10,8 @@ import {
   ExternalLink,
   AlertCircle,
   Clock,
+  Copy,
+  Check,
   FileText,
   Globe,
   Image as ImageIcon,
@@ -933,11 +936,30 @@ function NetworkTab({ crawl }: { crawl: CrawlDetail }) {
 // ─── Raw JSON Tab ────────────────────────────────────────────────────────────
 
 function RawTab({ crawl }: { crawl: CrawlDetail }) {
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(JSON.stringify(crawl, null, 2));
+    setCopied(true);
+    toast.success('Copied to clipboard');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Raw JSON</CardTitle>
-        <CardDescription>Complete crawl result data.</CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle>Raw JSON</CardTitle>
+          <CardDescription>Complete crawl result data.</CardDescription>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleCopy}>
+          {copied ? (
+            <Check className="mr-2 size-4 text-emerald-500" />
+          ) : (
+            <Copy className="mr-2 size-4" />
+          )}
+          {copied ? 'Copied' : 'Copy JSON'}
+        </Button>
       </CardHeader>
       <CardContent>
         <ScrollArea className="max-h-[700px]">

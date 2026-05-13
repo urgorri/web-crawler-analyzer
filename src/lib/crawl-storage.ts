@@ -34,9 +34,26 @@ export async function createCrawl(input: { urls: string[]; config: Record<string
   await ensureOutputDir();
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
+
+  // Determine name
+  let name = `Crawl ${now.slice(0, 19).replace("T", " ")}`;
+  if (input.urls.length > 0) {
+    try {
+      const domains = new Set(input.urls.map(u => new URL(u).hostname));
+      const timestamp = now.slice(0, 19).replace("T", " ");
+      if (domains.size === 1) {
+        name = `${Array.from(domains)[0]} ${timestamp}`;
+      } else if (domains.size > 1) {
+        name = `Multi ${timestamp}`;
+      }
+    } catch (e) {
+      // Fallback to default name if URL parsing fails
+    }
+  }
+
   const record: CrawlRecord = {
     id,
-    name: `Crawl ${now.slice(0, 19).replace("T", " ")}`,
+    name,
     status: "running",
     seedCount: input.urls.length,
     pageCount: 0,

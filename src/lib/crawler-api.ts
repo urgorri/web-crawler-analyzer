@@ -132,3 +132,22 @@ export async function exportCrawlJson(id: string): Promise<Blob> {
   }
   return res.blob();
 }
+
+export interface CrawlProgress {
+  url?: string;
+  title?: string;
+  error?: string;
+  pageCount: number;
+  errorCount: number;
+  updatedAt: string;
+}
+
+export async function getCrawlProgress(id: string): Promise<CrawlProgress | null> {
+  const res = await fetch(`${API_BASE}/${encodeURIComponent(id)}/progress`);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `Progress failed (${res.status})`);
+  }
+  return res.json() as Promise<CrawlProgress>;
+}

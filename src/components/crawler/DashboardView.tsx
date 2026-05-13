@@ -101,6 +101,13 @@ export default function DashboardView() {
   const { data: crawls, isLoading, error } = useQuery({
     queryKey: ['crawls'],
     queryFn: getCrawls,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (data && data.some((c: CrawlSummary) => c.status === 'running')) {
+        return 3000; // Refetch every 3s if there are running crawls
+      }
+      return false;
+    },
   });
 
   const deleteMutation = useMutation({
