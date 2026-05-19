@@ -92,7 +92,7 @@ function statusBadge(status: string) {
 }
 
 function fmtDate(iso: string | null) {
-  if (!iso) return '—';
+  if (!iso) return '-';
   return format(new Date(iso), 'MMM d, yyyy HH:mm:ss');
 }
 
@@ -101,7 +101,7 @@ function truncate(s: string, max: number) {
   return s.slice(0, max) + '…';
 }
 
-function n(value: number | undefined | null, fallback = '—') {
+function n(value: number | undefined | null, fallback = '-') {
   return value != null ? value.toLocaleString() : fallback;
 }
 
@@ -184,7 +184,7 @@ export default function CrawlDetailView() {
               Started: {fmtDate(crawl.startedAt)}
             </span>
             <span>Completed: {fmtDate(crawl.completedAt)}</span>
-            <span>Engine: {crawl.engine ?? '—'}</span>
+            <span>Engine: {crawl.engine ?? '-'}</span>
           </div>
         </div>
         <Button variant="outline" onClick={handleExport}>
@@ -498,7 +498,7 @@ function PageDetail({ page }: { page: PageData }) {
       <Section title="General" icon={<Globe className="size-3.5" />}>
         <InfoRow label="URL" value={page.url} mono />
         <InfoRow label="Final URL" value={page.finalUrl} mono />
-        <InfoRow label="Status Code" value={page.statusCode != null ? String(page.statusCode) : '—'} />
+        <InfoRow label="Status Code" value={page.statusCode != null ? String(page.statusCode) : '-'} />
         <InfoRow label="Title" value={page.title} />
         <InfoRow label="Language" value={page.lang} />
         <InfoRow label="Charset" value={page.charset} />
@@ -558,11 +558,11 @@ function PageDetail({ page }: { page: PageData }) {
             <TableBody>
               {page.buttons.map((btn, i) => (
                 <TableRow key={i}>
-                  <TableCell>{btn.text || '—'}</TableCell>
+                  <TableCell>{btn.text || '-'}</TableCell>
                   <TableCell>{btn.type}</TableCell>
-                  <TableCell>{btn.aria_label || '—'}</TableCell>
+                  <TableCell>{btn.aria_label || '-'}</TableCell>
                   <TableCell className="max-w-[200px] truncate font-mono text-xs">
-                    {btn.href || '—'}
+                    {btn.href || '-'}
                   </TableCell>
                 </TableRow>
               ))}
@@ -591,7 +591,7 @@ function PageDetail({ page }: { page: PageData }) {
                     <TableRow key={i}>
                       <TableCell className="max-w-[200px] truncate">{l.text}</TableCell>
                       <TableCell className="max-w-[300px] truncate font-mono text-xs">{l.href}</TableCell>
-                      <TableCell>{l.rel || '—'}</TableCell>
+                      <TableCell>{l.rel || '-'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -615,7 +615,7 @@ function PageDetail({ page }: { page: PageData }) {
                     <TableRow key={i}>
                       <TableCell className="max-w-[200px] truncate">{l.text}</TableCell>
                       <TableCell className="max-w-[300px] truncate font-mono text-xs">{l.href}</TableCell>
-                      <TableCell>{l.rel || '—'}</TableCell>
+                      <TableCell>{l.rel || '-'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -647,7 +647,7 @@ function PageDetail({ page }: { page: PageData }) {
                     <TableRow key={fj}>
                       <TableCell className="font-mono text-xs">{f.name}</TableCell>
                       <TableCell>{f.type}</TableCell>
-                      <TableCell>{f.label || '—'}</TableCell>
+                      <TableCell>{f.label || '-'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -673,7 +673,7 @@ function PageDetail({ page }: { page: PageData }) {
                 </div>
                 <div className="min-w-0 flex flex-col gap-0.5">
                   <p className="text-xs truncate font-mono">{truncate(img.src, 60)}</p>
-                  <p className="text-xs text-muted-foreground">Alt: {img.alt || '—'}</p>
+                  <p className="text-xs text-muted-foreground">Alt: {img.alt || '-'}</p>
                   {(img.width || img.height) && (
                     <p className="text-xs text-muted-foreground">
                       {img.width ?? '?'}×{img.height ?? '?'}
@@ -914,11 +914,11 @@ function NetworkTab({ crawl }: { crawl: CrawlDetail }) {
                     {req.url}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell tabular-nums">
-                    {req.status ?? '—'}
+                    {req.status ?? '-'}
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">{req.resourceType ?? '—'}</TableCell>
+                  <TableCell className="hidden md:table-cell">{req.resourceType ?? '-'}</TableCell>
                   <TableCell className="hidden lg:table-cell tabular-nums">
-                    {req.size != null ? `${(req.size / 1024).toFixed(1)} KB` : '—'}
+                    {req.size != null ? `${(req.size / 1024).toFixed(1)} KB` : '-'}
                   </TableCell>
                   <TableCell className="hidden xl:table-cell max-w-[200px] truncate text-xs text-muted-foreground">
                     {req.page}

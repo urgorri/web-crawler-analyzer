@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WebScope — Web Crawler & Analyzer",
+  title: "WebScope - Web Crawler & Analyzer",
   description:
     "Extract structured data from any website. Render pages with Playwright, capture visible content, metadata, links, forms, images, scripts, styles, network requests, structured data, and technology evidence.",
   keywords: [

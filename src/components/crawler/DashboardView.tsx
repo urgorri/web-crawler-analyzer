@@ -88,7 +88,7 @@ function statusBadge(status: string) {
 }
 
 function formatDate(iso: string | null) {
-  if (!iso) return '—';
+  if (!iso) return '-';
   return format(new Date(iso), 'MMM d, yyyy HH:mm');
 }
 
