@@ -17,8 +17,7 @@
     "outDir": "./dist"
   },
   "include": [
-    "crawl.ts",
-    "index.ts"
+    "crawl.ts"
   ],
   "exclude": [
     "node_modules",
