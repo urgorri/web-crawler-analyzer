@@ -257,21 +257,10 @@ function CrawlRow({
   onDelete: () => void;
   deleting: boolean;
 }) {
-  const ref = useCallback(
-    (node: HTMLTableRowElement | null) => {
-      if (node) {
-        const handler = () => onView();
-        node.addEventListener('click', handler);
-        return () => node.removeEventListener('click', handler);
-      }
-    },
-    [onView],
-  );
-
   return (
     <TableRow
-      ref={ref}
       className="cursor-pointer"
+      onClick={onView}
     >
       <TableCell className="font-medium max-w-[200px] truncate">
         {crawl.name ?? 'Untitled'}
@@ -286,14 +275,13 @@ function CrawlRow({
       <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
         {formatDate(crawl.startedAt)}
       </TableCell>
-      <TableCell className="text-right">
+      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
               className="size-8"
-              onClick={(e) => e.stopPropagation()}
               disabled={deleting}
             >
               {deleting ? (
@@ -303,7 +291,7 @@ function CrawlRow({
               )}
             </Button>
           </AlertDialogTrigger>
-          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Crawl</AlertDialogTitle>
               <AlertDialogDescription>

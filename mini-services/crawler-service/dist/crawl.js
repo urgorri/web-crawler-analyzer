@@ -324,7 +324,8 @@ async function main() {
                         url: result.value.url,
                         title: result.value.title,
                         pageCount: pages.length,
-                        errorCount: errors.length
+                        errorCount: errors.length,
+                        status: 'running',
                     })}\n`);
                 }
                 else {
@@ -334,7 +335,8 @@ async function main() {
                         url: batch[j],
                         error: msg,
                         pageCount: pages.length,
-                        errorCount: errors.length
+                        errorCount: errors.length,
+                        status: 'running',
                     })}\n`);
                 }
             }

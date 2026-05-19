@@ -97,7 +97,13 @@ export default function NewCrawlView() {
     queryKey: ['crawl-progress', activeCrawlId],
     queryFn: () => getCrawlProgress(activeCrawlId!),
     enabled: !!activeCrawlId && isDialogOpen,
-    refetchInterval: (data) => (data?.status && data.status !== 'running' ? false : 1000),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (data?.status && data.status !== 'running') {
+        return false;
+      }
+      return 1000;
+    },
   });
 
   const isFinished = progress

@@ -73,6 +73,33 @@ function AppShell() {
         {currentView === 'new-crawl' && <NewCrawlView />}
         {currentView === 'crawl-detail' && <CrawlDetailView />}
       </main>
+
+      {/* Footer */}
+      <footer className="border-t py-6 md:py-0">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 md:h-16 md:flex-row px-4 sm:px-6">
+          <p className="text-center text-sm leading-loose text-muted-foreground md:text-left">
+            Built by{" "}
+            <a
+              href="https://github.com/urgorri"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium underline underline-offset-4"
+            >
+              Gastón Urgorri
+            </a>
+            . The source code is available on{" "}
+            <a
+              href="https://github.com/urgorri"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium underline underline-offset-4"
+            >
+              GitHub
+            </a>
+            .
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
