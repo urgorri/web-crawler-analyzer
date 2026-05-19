@@ -222,6 +222,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
 
     let stdoutBuffer = "";
     let stderrBuffer = "";
+    let stderrLineBuffer = "";
 
     child.stdout?.on("data", (chunk) => {
       const text = chunk.toString();
@@ -234,9 +235,13 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
       stderrBuffer += text;
       stderrLogStream.write(chunk);
 
-      // Handle progress updates
-      const lines = text.split("\n");
-      for (const line of lines) {
+      // Handle progress updates by buffering lines
+      stderrLineBuffer += text;
+      let lineEndIndex;
+      while ((lineEndIndex = stderrLineBuffer.indexOf("\n")) !== -1) {
+        const line = stderrLineBuffer.substring(0, lineEndIndex).trim();
+        stderrLineBuffer = stderrLineBuffer.substring(lineEndIndex + 1);
+
         if (line.startsWith("PROGRESS_UPDATE:")) {
           try {
             const progressData = JSON.parse(line.substring("PROGRESS_UPDATE:".length));

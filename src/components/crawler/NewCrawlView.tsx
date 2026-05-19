@@ -97,11 +97,12 @@ export default function NewCrawlView() {
     queryKey: ['crawl-progress', activeCrawlId],
     queryFn: () => getCrawlProgress(activeCrawlId!),
     enabled: !!activeCrawlId && isDialogOpen,
-    refetchInterval: 1000,
+    refetchInterval: (data) => (data?.status && data.status !== 'running' ? false : 1000),
   });
 
   const isFinished = progress
-    ? (progress.pageCount + progress.errorCount) >= urlList.length && urlList.length > 0
+    ? (progress.status && progress.status !== 'running') ||
+      ((progress.pageCount + progress.errorCount) >= urlList.length && urlList.length > 0)
     : false;
 
 
