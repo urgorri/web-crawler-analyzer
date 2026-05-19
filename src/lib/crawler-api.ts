@@ -139,6 +139,7 @@ export interface CrawlProgress {
   error?: string;
   pageCount: number;
   errorCount: number;
+  status?: string;
   updatedAt: string;
 }
 
