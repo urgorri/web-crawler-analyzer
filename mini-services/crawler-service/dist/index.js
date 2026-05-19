@@ -41,7 +41,7 @@ const LIB_PATTERNS = [
     "fontawesome", "material-ui", "ant-design", "chakra",
     "tailwindcss", "styled-components", "emotion",
     "redux", "mobx", "pinia", "zustand",
-    "firebase", "supabase", "prisma",
+    "firebase", "supabase",
     "wordpress", "drupal", "shopify", "squarespace", "wix",
 ];
 function extractTechEvidence(page) {

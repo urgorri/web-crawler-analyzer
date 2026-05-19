@@ -56,7 +56,7 @@ const LIB_PATTERNS = [
     "three\\.js", "d3", "chart\\.js", "lodash", "moment", "axios", "algolia",
     "gtm", "ga\\.", "google-analytics", "fontawesome", "material-ui", "ant-design",
     "chakra", "tailwindcss", "styled-components", "emotion", "redux", "mobx",
-    "pinia", "zustand", "firebase", "supabase", "prisma", "wordpress", "drupal",
+    "pinia", "zustand", "firebase", "supabase", "wordpress", "drupal",
     "shopify", "squarespace", "wix",
 ];
 function extractTechEvidence(page) {

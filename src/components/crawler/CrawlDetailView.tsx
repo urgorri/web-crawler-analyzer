@@ -25,7 +25,8 @@ import {
   FileCode2,
   Palette,
   Cpu,
-  Database,
+  Activity,
+  FileJson,
   ChevronRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -198,7 +199,7 @@ export default function CrawlDetailView() {
         <MiniStat icon={<FileText className="size-4" />} label="Pages" value={crawl.pageCount} />
         <MiniStat icon={<AlertCircle className="size-4" />} label="Errors" value={crawl.errorCount} />
         <MiniStat icon={<Link2 className="size-4" />} label="Seed URLs" value={crawl.seedCount} />
-        <MiniStat icon={<Cpu className="size-4" />} label="Status" value={crawl.status} />
+        <MiniStat icon={<Activity className="size-4" />} label="Status" value={crawl.status} />
       </div>
 
       {/* Warnings / errors */}
@@ -805,7 +806,7 @@ function StructuredTab({ crawl }: { crawl: CrawlDetail }) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
-          <Database className="size-8 opacity-30" />
+          <FileJson className="size-8 opacity-30" />
           <p>No structured data (JSON-LD) found.</p>
         </CardContent>
       </Card>
