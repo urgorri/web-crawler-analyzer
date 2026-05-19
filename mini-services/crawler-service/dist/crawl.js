@@ -118,7 +118,8 @@ async function crawlPage(browser, url, config) {
                     entry.size = parseInt(cl, 10) || undefined;
             }
             const rt = res.request().resourceType();
-            if (["image", "font", "media", "other"].includes(rt))
+            // Only include resources that are not already captured in specific arrays like images, scripts, or stylesheets
+            if (["font", "media", "other"].includes(rt))
                 resourceEntries.push({ type: rt, url: sanitize(res.url()) });
         }
         catch { }
@@ -187,14 +188,32 @@ async function crawlPage(browser, url, config) {
                 forms.push({ action: (f.getAttribute("action") ?? "").substring(0, 2000), method: (f.getAttribute("method") ?? "GET").toUpperCase(), fields: fields.slice(0, 100) });
             });
             const imgs = [];
-            document.querySelectorAll("img").forEach((ie) => { const i = ie; if (!i.src)
-                return; imgs.push({ src: i.src.substring(0, 2000), alt: (i.alt ?? "").substring(0, 500), width: i.width || undefined, height: i.height || undefined }); });
+            const seenImgs = new Set();
+            document.querySelectorAll("img").forEach((ie) => {
+                const i = ie;
+                if (!i.src || seenImgs.has(i.src))
+                    return;
+                seenImgs.add(i.src);
+                imgs.push({ src: i.src.substring(0, 2000), alt: (i.alt ?? "").substring(0, 500), width: i.width || undefined, height: i.height || undefined });
+            });
             const scripts = [];
-            document.querySelectorAll("script[src]").forEach((s) => { const src = s.getAttribute("src"); if (src)
-                scripts.push(src.substring(0, 2000)); });
+            const seenScripts = new Set();
+            document.querySelectorAll("script[src]").forEach((s) => {
+                const src = s.getAttribute("src");
+                if (src && !seenScripts.has(src)) {
+                    seenScripts.add(src);
+                    scripts.push(src.substring(0, 2000));
+                }
+            });
             const stylesheets = [];
-            document.querySelectorAll("link[rel='stylesheet'][href]").forEach((s) => { const href = s.getAttribute("href"); if (href)
-                stylesheets.push(href.substring(0, 2000)); });
+            const seenStyles = new Set();
+            document.querySelectorAll("link[rel='stylesheet'][href]").forEach((s) => {
+                const href = s.getAttribute("href");
+                if (href && !seenStyles.has(href)) {
+                    seenStyles.add(href);
+                    stylesheets.push(href.substring(0, 2000));
+                }
+            });
             const sd = [];
             document.querySelectorAll('script[type="application/ld+json"]').forEach((e) => { try {
                 sd.push(JSON.parse((e.textContent ?? "").trim()));

@@ -325,22 +325,40 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
       terminalStatus = "partial";
     }
 
-    // Transform snake_case from crawler to camelCase for frontend
-    const transformedPages = crawlResult.pages.map((page: any) => ({
-      ...page,
-      finalUrl: page.final_url,
-      statusCode: page.status_code,
-      metaDescription: page.meta_description,
-      robotsMeta: page.robots_meta,
-      metaGenerator: page.meta_generator,
-      visibleText: page.visible_text,
-      wordCount: page.word_count,
-      charCount: page.char_count,
-      structuredData: page.structured_data,
-      bodyClasses: page.body_classes,
-      htmlClasses: page.html_classes,
-      techEvidence: page.tech_evidence,
-    }));
+    // Transform snake_case from crawler to camelCase for frontend and remove redundant fields
+    const transformedPages = crawlResult.pages.map((page: any) => {
+      const {
+        final_url,
+        status_code,
+        meta_description,
+        robots_meta,
+        meta_generator,
+        visible_text,
+        word_count,
+        char_count,
+        structured_data,
+        body_classes,
+        html_classes,
+        tech_evidence,
+        ...rest
+      } = page;
+
+      return {
+        ...rest,
+        finalUrl: final_url,
+        statusCode: status_code,
+        metaDescription: meta_description,
+        robotsMeta: robots_meta,
+        metaGenerator: meta_generator,
+        visibleText: visible_text,
+        wordCount: word_count,
+        charCount: char_count,
+        structuredData: structured_data,
+        bodyClasses: body_classes,
+        htmlClasses: html_classes,
+        techEvidence: tech_evidence,
+      };
+    });
 
     try {
       await updateCrawl(crawlId, {
