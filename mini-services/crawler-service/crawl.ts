@@ -155,7 +155,8 @@ async function crawlPage(browser: import("playwright").Browser, url: string, con
       const entry = networkEntries.find((n) => n.url === sanitize(res.url()));
       if (entry) { entry.status = res.status(); const cl = res.headers()["content-length"]; if (cl) entry.size = parseInt(cl, 10) || undefined; }
       const rt = res.request().resourceType();
-      if (["image", "font", "media", "other"].includes(rt)) resourceEntries.push({ type: rt, url: sanitize(res.url()) });
+      // Only include resources that are not already captured in specific arrays like images, scripts, or stylesheets
+      if (["font", "media", "other"].includes(rt)) resourceEntries.push({ type: rt, url: sanitize(res.url()) });
     } catch {}
   });
 
@@ -209,9 +210,33 @@ async function crawlPage(browser: import("playwright").Browser, url: string, con
       });
 
       const imgs: PageResult["images"] = [];
-      document.querySelectorAll("img").forEach((ie) => { const i = ie as HTMLImageElement; if (!i.src) return; imgs.push({ src: i.src.substring(0, 2000), alt: (i.alt ?? "").substring(0, 500), width: i.width || undefined, height: i.height || undefined }); });
-      const scripts: string[] = []; document.querySelectorAll("script[src]").forEach((s) => { const src = (s as HTMLScriptElement).getAttribute("src"); if (src) scripts.push(src.substring(0, 2000)); });
-      const stylesheets: string[] = []; document.querySelectorAll("link[rel='stylesheet'][href]").forEach((s) => { const href = (s as HTMLLinkElement).getAttribute("href"); if (href) stylesheets.push(href.substring(0, 2000)); });
+      const seenImgs = new Set<string>();
+      document.querySelectorAll("img").forEach((ie) => {
+        const i = ie as HTMLImageElement;
+        if (!i.src || seenImgs.has(i.src)) return;
+        seenImgs.add(i.src);
+        imgs.push({ src: i.src.substring(0, 2000), alt: (i.alt ?? "").substring(0, 500), width: i.width || undefined, height: i.height || undefined });
+      });
+
+      const scripts: string[] = [];
+      const seenScripts = new Set<string>();
+      document.querySelectorAll("script[src]").forEach((s) => {
+        const src = (s as HTMLScriptElement).getAttribute("src");
+        if (src && !seenScripts.has(src)) {
+          seenScripts.add(src);
+          scripts.push(src.substring(0, 2000));
+        }
+      });
+
+      const stylesheets: string[] = [];
+      const seenStyles = new Set<string>();
+      document.querySelectorAll("link[rel='stylesheet'][href]").forEach((s) => {
+        const href = (s as HTMLLinkElement).getAttribute("href");
+        if (href && !seenStyles.has(href)) {
+          seenStyles.add(href);
+          stylesheets.push(href.substring(0, 2000));
+        }
+      });
       const sd: Record<string, unknown>[] = [];
       document.querySelectorAll('script[type="application/ld+json"]').forEach((e) => { try { sd.push(JSON.parse((e.textContent ?? "").trim())); } catch {} });
       const bc = document.body?.className?.split(/\s+/).filter(Boolean) ?? [];

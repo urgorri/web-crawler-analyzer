@@ -100,12 +100,10 @@ export default function NewCrawlView() {
     refetchInterval: 1000,
   });
 
-  useEffect(() => {
-    if (activeCrawlId && !progress && mutation.isSuccess && !mutation.isPending) {
-        // If progress is null and it's not the first load, it might have finished
-        // We can double check or just wait
-    }
-  }, [progress, activeCrawlId, mutation.isSuccess, mutation.isPending]);
+  const isFinished = progress
+    ? (progress.pageCount + progress.errorCount) >= urlList.length && urlList.length > 0
+    : false;
+
 
   const handleSubmit = useCallback(() => {
     if (urlList.length === 0) {
@@ -299,27 +297,34 @@ export default function NewCrawlView() {
 
       <Dialog open={isDialogOpen} onOpenChange={(open) => {
         setIsDialogOpen(open);
-        if (!open) {
-          navigateTo('dashboard');
-        }
+        if (!open) setActiveCrawlId(null);
       }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Crawl Progress</DialogTitle>
+            <DialogTitle>
+              {isFinished ? 'Crawl Finished' : 'Crawl Progress'}
+            </DialogTitle>
             <DialogDescription>
-              We are analyzing your URLs. You can close this dialog; the crawl will continue in the background.
+              {isFinished
+                ? 'The analysis is complete. You can now view the detailed report.'
+                : 'We are analyzing your URLs. You can close this dialog; the crawl will continue in the background.'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-6 py-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Progress</span>
+                <span className="text-muted-foreground">
+                  {isFinished ? 'Final Status' : 'Progress'}
+                </span>
                 <span className="font-medium">
                   {progress ? Math.min(Math.round(((progress.pageCount + progress.errorCount) / urlList.length) * 100), 100) : 0}%
                 </span>
               </div>
-              <Progress value={progress ? ((progress.pageCount + progress.errorCount) / urlList.length) * 100 : 0} />
+              <Progress
+                value={progress ? ((progress.pageCount + progress.errorCount) / urlList.length) * 100 : 0}
+                className={isFinished ? "bg-emerald-100 [&>div]:bg-emerald-500" : ""}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -339,7 +344,7 @@ export default function NewCrawlView() {
               </div>
             </div>
 
-            {progress?.url && (
+            {!isFinished && progress?.url && (
               <div className="space-y-1.5">
                 <div className="text-xs font-semibold text-muted-foreground uppercase">Current/Last URL</div>
                 <div className="rounded-md bg-muted p-2 text-xs font-mono break-all truncate">
@@ -358,13 +363,21 @@ export default function NewCrawlView() {
               </div>
             )}
 
-            <div className="flex justify-end">
-              <Button onClick={() => {
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => {
                 setIsDialogOpen(false);
                 navigateTo('dashboard');
               }}>
                 Go to Dashboard
               </Button>
+              {isFinished && activeCrawlId && (
+                <Button onClick={() => {
+                  setIsDialogOpen(false);
+                  navigateTo('crawl-detail', activeCrawlId);
+                }}>
+                  View Report
+                </Button>
+              )}
             </div>
           </div>
         </DialogContent>
