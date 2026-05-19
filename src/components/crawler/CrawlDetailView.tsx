@@ -458,7 +458,7 @@ function PagesTab({ crawl }: { crawl: CrawlDetail }) {
         <CardDescription>Expand each page to see detailed analysis data.</CardDescription>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="max-h-[600px]">
+        <ScrollArea>
           <Accordion type="multiple" className="w-full">
             {pages.map((page, idx) => (
               <AccordionItem key={page.id ?? idx} value={`page-${idx}`}>
@@ -759,7 +759,7 @@ function TechTab({ crawl }: { crawl: CrawlDetail }) {
         <CardDescription>Technologies detected across all crawled pages.</CardDescription>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="max-h-[500px]">
+        <ScrollArea>
           <Table>
             <TableHeader>
               <TableRow>
@@ -819,7 +819,7 @@ function StructuredTab({ crawl }: { crawl: CrawlDetail }) {
         <CardDescription>JSON-LD data extracted from crawled pages.</CardDescription>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="max-h-[600px]">
+        <ScrollArea>
           <Accordion type="multiple" className="w-full">
             {items.map((item, idx) => (
               <AccordionItem key={idx} value={`sd-${idx}`}>
@@ -890,7 +890,7 @@ function NetworkTab({ crawl }: { crawl: CrawlDetail }) {
         <CardDescription>All network requests captured during crawling.</CardDescription>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="max-h-[600px]">
+        <ScrollArea>
           <Table>
             <TableHeader>
               <TableRow>
@@ -962,7 +962,7 @@ function RawTab({ crawl }: { crawl: CrawlDetail }) {
         </Button>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="max-h-[700px]">
+        <ScrollArea>
           <SyntaxHighlighter
             language="json"
             style={oneDark}
