@@ -142,8 +142,8 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
         lastErrorStage: stage,
         completedAt: new Date().toISOString(),
       });
-    } catch (dbErr) {
-      console.error(`[API] Failed to update crawl error state (stage=${stage}):`, dbErr);
+    } catch (writeErr) {
+      console.error(`[API] Failed to update crawl error state (stage=${stage}):`, writeErr);
     }
   }
 
@@ -375,8 +375,8 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
         completedAt: new Date().toISOString(),
         pages: transformedPages,
       });
-    } catch (dbErr) {
-      logError("persist", "Failed to update crawl final status", dbErr);
+    } catch (writeErr) {
+      logError("persist", "Failed to update crawl final status", writeErr);
       // Best effort: already have partial data, mark as partial
       await updateCrawlError("persist", "Failed to finalize crawl record", "partial");
     }
@@ -388,7 +388,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
     const message = error instanceof Error ? error.message : "Unknown error";
     logError("spawn", message, error);
     
-    // Wrap db.crawl.update in try/catch to prevent unhandled rejections
+    // Wrap updateCrawl in try/catch to prevent unhandled rejections
     try {
       await updateCrawl(crawlId, {
         status: "failed",
@@ -396,8 +396,8 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
         lastErrorStage: "spawn",
         completedAt: new Date().toISOString(),
       });
-    } catch (dbErr) {
-      console.error(`[API] Failed to update crawl status after error:`, dbErr);
+    } catch (writeErr) {
+      console.error(`[API] Failed to update crawl status after error:`, writeErr);
     }
 
     console.error(`[API] Crawl ${crawlId} failed:`, message);

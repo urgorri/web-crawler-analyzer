@@ -65,7 +65,7 @@ npm start
 
 1. **Create a Crawl**: Enter one or more URLs in the dashboard.
 2. **Background Execution**: The system spawns a detached crawler process using Playwright.
-3. **Data Storage**: Results are saved as JSON files in the `output/` directory. No database (SQLite/Prisma) is required.
+3. **Data Storage**: Results are saved as JSON files in the `output/` directory. No database is required.
 4. **Analysis**: View the detailed report in the UI or export the JSON for further processing.
 
 ## Security: SSRF Protection
