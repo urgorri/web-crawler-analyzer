@@ -375,7 +375,7 @@ function OverviewTab({ crawl }: { crawl: CrawlDetail }) {
           <ul className="space-y-1 text-sm">
             {(crawl.urls ?? []).map((u, i) => (
               <li key={i} className="flex items-center gap-2">
-                <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
+                <Link2 className="size-3 shrink-0 text-muted-foreground" />
                 <a
                   href={u}
                   target="_blank"
@@ -429,7 +429,7 @@ function StatCard({
       </CardHeader>
       {sub && (
         <CardContent className="pt-0">
-          <p className="text-xs text-muted-foreground">{sub}</p>
+          <p className="text-xs text-muted-foreground overflow-hidden">{sub}</p>
         </CardContent>
       )}
     </Card>
