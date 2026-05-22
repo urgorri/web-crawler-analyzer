@@ -3,7 +3,29 @@ import { NormalizedCrawl, NormalizedPageData, CrawlEntities, PageData } from "@/
 import crypto from "crypto";
 
 /**
- * Normalizes a raw CrawlRecord into a deduplicated v2 format.
+ * Stable stringify to ensure consistent hashing of objects regardless of key order.
+ */
+function stableStringify(obj: any): string {
+  if (obj === null || typeof obj !== "object") {
+    return JSON.stringify(obj);
+  }
+  if (Array.isArray(obj)) {
+    return "[" + obj.map(stableStringify).join(",") + "]";
+  }
+  const keys = Object.keys(obj).sort();
+  return (
+    "{" +
+    keys
+      .map((key) => {
+        return JSON.stringify(key) + ":" + stableStringify(obj[key]);
+      })
+      .join(",") +
+    "}"
+  );
+}
+
+/**
+ * Normalizes a raw CrawlRecord into a deduplicated format.
  */
 export function normalizeCrawl(record: CrawlRecord): NormalizedCrawl {
   const entities: CrawlEntities = {
@@ -14,13 +36,18 @@ export function normalizeCrawl(record: CrawlRecord): NormalizedCrawl {
     scripts: {},
     stylesheets: {},
     classes: {},
+    images: {},
+    forms: {},
+    resources: {},
+    network: {},
+    structuredData: {},
   };
 
   // Helper to get or create entity ID
   function getOrAdd<T>(
     dict: Record<string, T>,
     value: T,
-    hashFn: (v: T) => string = (v) => JSON.stringify(v)
+    hashFn: (v: T) => string = (v) => stableStringify(v)
   ): string {
     const hash = crypto.createHash("md5").update(hashFn(value)).digest("hex").slice(0, 12);
     if (!dict[hash]) {
@@ -60,7 +87,24 @@ export function normalizeCrawl(record: CrawlRecord): NormalizedCrawl {
     const bodyClassIds = (page.body_classes || []).map((c: string) => getOrAdd(entities.classes, c));
     const htmlClassIds = (page.html_classes || []).map((c: string) => getOrAdd(entities.classes, c));
 
-    // Map the rest of the fields to camelCase for the V2 output
+    // Process Images
+    const imageIds = (page.images || []).map((img: any) => getOrAdd(entities.images, img));
+
+    // Process Forms
+    const formIds = (page.forms || []).map((f: any) => getOrAdd(entities.forms, f));
+
+    // Process Resources
+    const resourceIds = (page.resources || []).map((r: any) => getOrAdd(entities.resources, r));
+
+    // Process Network
+    const networkIds = (page.network || []).map((n: any) => getOrAdd(entities.network, n));
+
+    // Process Structured Data
+    const structuredDataIds = (page.structured_data || []).map((sd: any) =>
+      getOrAdd(entities.structuredData, sd)
+    );
+
+    // Map the rest of the fields to camelCase for the output
     return {
       url: page.url,
       finalUrl: page.final_url,
@@ -89,18 +133,18 @@ export function normalizeCrawl(record: CrawlRecord): NormalizedCrawl {
       techIds,
       bodyClassIds,
       htmlClassIds,
-      images: page.images || [],
-      forms: page.forms || [],
-      resources: page.resources || [],
-      network: page.network || [],
-      structuredData: page.structured_data || [],
+      imageIds,
+      formIds,
+      resourceIds,
+      networkIds,
+      structuredDataIds,
     };
   });
 
   const rawBytesEstimate = Buffer.byteLength(JSON.stringify(record));
 
   const result: NormalizedCrawl = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     id: record.id,
     name: record.name,
     status: record.status,

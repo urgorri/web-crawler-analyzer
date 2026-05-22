@@ -98,30 +98,11 @@ export interface NormalizedPageData {
   techIds: string[];
   bodyClassIds: string[];
   htmlClassIds: string[];
-
-  // Keep these per-page as they are usually more unique or have high metadata
-  images: Array<{
-    src: string;
-    alt: string;
-    width?: number;
-    height?: number;
-    naturalWidth?: number;
-    naturalHeight?: number;
-  }>;
-  forms: Array<{
-    action: string;
-    method: string;
-    fields: Array<{ name: string; type: string; label: string }>;
-  }>;
-  resources: Array<{ type: string; url: string; size?: number }>;
-  network: Array<{
-    url: string;
-    method: string;
-    status?: number;
-    resourceType?: string;
-    size?: number;
-  }>;
-  structuredData: Record<string, unknown>[];
+  imageIds: string[];
+  formIds: string[];
+  resourceIds: string[];
+  networkIds: string[];
+  structuredDataIds: string[];
 }
 
 export interface CrawlEntities {
@@ -139,10 +120,32 @@ export interface CrawlEntities {
   scripts: Record<string, string>;
   stylesheets: Record<string, string>;
   classes: Record<string, string>;
+  images: Record<string, {
+    src: string;
+    alt: string;
+    width?: number;
+    height?: number;
+    naturalWidth?: number;
+    naturalHeight?: number;
+  }>;
+  forms: Record<string, {
+    action: string;
+    method: string;
+    fields: Array<{ name: string; type: string; label: string }>;
+  }>;
+  resources: Record<string, { type: string; url: string; size?: number }>;
+  network: Record<string, {
+    url: string;
+    method: string;
+    status?: number;
+    resourceType?: string;
+    size?: number;
+  }>;
+  structuredData: Record<string, Record<string, unknown>>;
 }
 
 export interface NormalizedCrawl {
-  schemaVersion: 2;
+  schemaVersion: 3;
   id: string;
   name: string;
   status: string;
