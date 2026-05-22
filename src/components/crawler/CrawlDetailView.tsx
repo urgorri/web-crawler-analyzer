@@ -195,15 +195,14 @@ export default function CrawlDetailView() {
       </div>
 
       {/* Quick stats */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <MiniStat icon={<FileText className="size-4" />} label="Pages" value={crawl.pageCount} />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <MiniStat icon={<Link2 className="size-4" />} label="Seed URLs" value={crawl.seedCount} />
         <MiniStat icon={<AlertCircle className="size-4" />} label="Errors" value={crawl.errorCount} />
         <MiniStat
           icon={<Clock className="size-4" />}
           label="Avg Load Time"
           value={crawl.avgLoadTimeMs != null ? `${crawl.avgLoadTimeMs}ms` : '-'}
         />
-        <MiniStat icon={<Link2 className="size-4" />} label="Seed URLs" value={crawl.seedCount} />
         <MiniStat icon={<Activity className="size-4" />} label="Status" value={crawl.status} />
       </div>
 
