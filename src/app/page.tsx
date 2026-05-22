@@ -89,7 +89,7 @@ function AppShell() {
             </a>
             . The source code is available on{" "}
             <a
-              href="https://github.com/urgorri"
+              href="https://github.com/urgorri/web-crawler-analyzer"
               target="_blank"
               rel="noreferrer"
               className="font-medium underline underline-offset-4"
