@@ -33,6 +33,11 @@ const mockCrawl: CrawlRecord = {
       stylesheets: ["https://example.com/shared.css"],
       tech_evidence: ["React", "Tailwind"],
       body_classes: ["bg-white", "text-black"],
+      images: [{ src: "/logo.png", alt: "Logo" }],
+      forms: [{ action: "/login", method: "POST", fields: [] }],
+      resources: [{ type: "image", url: "/logo.png" }],
+      network: [{ url: "/api/data", method: "GET", status: 200 }],
+      structured_data: [{ "@type": "WebSite", name: "Example" }],
       loadTimeMs: 1200,
       domContentLoadedMs: 800,
       fullContentReadyMs: 1200,
@@ -50,6 +55,11 @@ const mockCrawl: CrawlRecord = {
       stylesheets: ["https://example.com/shared.css"],
       tech_evidence: ["React", "Framer Motion"],
       body_classes: ["bg-white", "p-4"],
+      images: [{ src: "/logo.png", alt: "Logo" }, { src: "/p2.png", alt: "P2" }],
+      forms: [{ method: "POST", action: "/login", fields: [] }], // Key order swapped
+      resources: [{ type: "image", url: "/logo.png" }],
+      network: [{ url: "/api/data", method: "GET", status: 200 }],
+      structured_data: [{ name: "Example", "@type": "WebSite" }], // Key order swapped
       loadTimeMs: 1500,
       domContentLoadedMs: 1000,
       fullContentReadyMs: 1500,
@@ -67,6 +77,11 @@ const mockCrawl: CrawlRecord = {
       stylesheets: ["https://example.com/shared.css"],
       tech_evidence: ["React", "Tailwind"],
       body_classes: ["bg-white", "text-black"],
+      images: [{ src: "/logo.png", alt: "Logo" }],
+      forms: [{ action: "/login", method: "POST", fields: [] }],
+      resources: [{ type: "image", url: "/logo.png" }],
+      network: [{ url: "/api/data", method: "GET", status: 200 }],
+      structured_data: [{ "@type": "WebSite", name: "Example" }],
       loadTimeMs: 1000,
       domContentLoadedMs: 600,
       fullContentReadyMs: 1000,
@@ -113,6 +128,26 @@ function runTest() {
   const page2Class = normalized.pages[1].bodyClassIds[0]; // bg-white
   console.log("Page 1 & 2 share class 'bg-white'?", sharedClass === page2Class ? "✅" : "❌");
 
+  const sharedImage = normalized.pages[0].imageIds[0];
+  const page2Image = normalized.pages[1].imageIds[0];
+  console.log("Page 1 & 2 share image?", sharedImage === page2Image ? "✅" : "❌");
+
+  const sharedForm = normalized.pages[0].formIds[0];
+  const page2Form = normalized.pages[1].formIds[0];
+  console.log("Page 1 & 2 share form (stable order check)?", sharedForm === page2Form ? "✅" : "❌");
+
+  const sharedResource = normalized.pages[0].resourceIds[0];
+  const page2Resource = normalized.pages[1].resourceIds[0];
+  console.log("Page 1 & 2 share resource?", sharedResource === page2Resource ? "✅" : "❌");
+
+  const sharedNetwork = normalized.pages[0].networkIds[0];
+  const page2Network = normalized.pages[1].networkIds[0];
+  console.log("Page 1 & 2 share network?", sharedNetwork === page2Network ? "✅" : "❌");
+
+  const sharedSD = normalized.pages[0].structuredDataIds[0];
+  const page2SD = normalized.pages[1].structuredDataIds[0];
+  console.log("Page 1 & 2 share structured data (stable order check)?", sharedSD === page2SD ? "✅" : "❌");
+
   // Verify output case
   console.log("\n--- Output Case Check ---");
   console.log("Page 1 has loadTimeMs?", normalized.pages[0].loadTimeMs === 1200 ? "✅" : "❌");
@@ -135,6 +170,11 @@ function runTest() {
     sharedScript === page2Script &&
     sharedTech === page2Tech &&
     sharedClass === page2Class &&
+    sharedImage === page2Image &&
+    sharedForm === page2Form &&
+    sharedResource === page2Resource &&
+    sharedNetwork === page2Network &&
+    sharedSD === page2SD &&
     normalized.pages[0].techIds.length === 2
   ) {
     console.log("\nSUCCESS: All integrity checks passed.");
