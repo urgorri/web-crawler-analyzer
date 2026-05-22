@@ -63,6 +63,7 @@ export default function NewCrawlView() {
   const navigateTo = useCrawlerStore((s) => s.navigateTo);
 
   const [urls, setUrls] = useState('');
+  const [crawlName, setCrawlName] = useState('');
   const [activeCrawlId, setActiveCrawlId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
@@ -81,8 +82,8 @@ export default function NewCrawlView() {
   const urlErrors = urlList.filter((u) => !isValidUrl(u));
 
   const mutation = useMutation({
-    mutationFn: (vars: { urls: string[]; config: CrawlConfig }) =>
-      createCrawl(vars.urls, vars.config),
+    mutationFn: (vars: { urls: string[]; config: CrawlConfig; name?: string }) =>
+      createCrawl(vars.urls, vars.config, vars.name),
     onSuccess: (data) => {
       toast.success('Crawl started successfully!');
       setActiveCrawlId(data.id);
@@ -133,8 +134,8 @@ export default function NewCrawlView() {
     };
     if (userAgent.trim()) cfg.userAgent = userAgent.trim();
 
-    mutation.mutate({ urls: urlList, config: cfg });
-  }, [urlList, urlErrors, timeout, maxPages, concurrency, headless, waitForNetwork, userAgent, mutation]);
+    mutation.mutate({ urls: urlList, config: cfg, name: crawlName.trim() });
+  }, [urlList, urlErrors, timeout, maxPages, concurrency, headless, waitForNetwork, userAgent, crawlName, mutation]);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -149,6 +150,17 @@ export default function NewCrawlView() {
         <p className="text-muted-foreground text-sm">
           Enter URLs to analyze and optionally configure crawl settings.
         </p>
+      </div>
+
+      {/* Crawl Name */}
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="crawlName">Crawl name (optional)</Label>
+        <Input
+          id="crawlName"
+          placeholder="My SEO audit - homepage"
+          value={crawlName}
+          onChange={(e) => setCrawlName(e.target.value)}
+        />
       </div>
 
       {/* URL input */}

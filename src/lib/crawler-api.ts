@@ -95,11 +95,12 @@ async function handleResponse<T>(res: Response): Promise<T> {
 export async function createCrawl(
   urls: string[],
   config?: CrawlConfig,
+  name?: string,
 ): Promise<CrawlSummary> {
   const res = await fetch(API_BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ urls, config: config ?? {} }),
+    body: JSON.stringify({ urls, config: config ?? {}, name }),
   });
   return handleResponse<CrawlSummary>(res);
 }
