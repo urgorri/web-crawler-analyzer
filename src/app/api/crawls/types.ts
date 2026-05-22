@@ -56,4 +56,105 @@ export interface PageData {
   body_classes: string[];
   html_classes: string[];
   tech_evidence: string[];
+  error?: string | null;
+  scrapedAt?: string;
+}
+
+// ─── V2 Optimized Schema (Normalized) ─────────────────────────────────────────
+
+export interface NormalizedPageData {
+  url: string;
+  finalUrl: string | null;
+  statusCode: number | null;
+  title: string | null;
+  metaDescription: string | null;
+  canonical: string | null;
+  robotsMeta: string | null;
+  lang: string | null;
+  dir: string | null;
+  charset: string | null;
+  metaGenerator: string | null;
+  visibleText: string | null;
+  wordCount: number;
+  charCount: number;
+  error?: string | null;
+  scrapedAt?: string;
+
+  // Reference IDs
+  headingIds: { h1: string[]; h2: string[]; h3: string[] };
+  buttonIds: string[];
+  linkIds: {
+    internal: string[];
+    external: string[];
+  };
+  scriptIds: string[];
+  stylesheetIds: string[];
+  techIds: string[];
+  bodyClassIds: string[];
+  htmlClassIds: string[];
+
+  // Keep these per-page as they are usually more unique or have high metadata
+  images: Array<{
+    src: string;
+    alt: string;
+    width?: number;
+    height?: number;
+    naturalWidth?: number;
+    naturalHeight?: number;
+  }>;
+  forms: Array<{
+    action: string;
+    method: string;
+    fields: Array<{ name: string; type: string; label: string }>;
+  }>;
+  resources: Array<{ type: string; url: string; size?: number }>;
+  network: Array<{
+    url: string;
+    method: string;
+    status?: number;
+    resourceType?: string;
+    size?: number;
+  }>;
+  structuredData: Record<string, unknown>[];
+}
+
+export interface CrawlEntities {
+  links: Record<string, { text: string; href: string; rel: string }>;
+  technologies: Record<string, string>;
+  buttons: Record<string, {
+    text: string;
+    type: string;
+    aria_label: string;
+    href?: string;
+    name?: string;
+    value?: string;
+  }>;
+  headings: Record<string, string>;
+  scripts: Record<string, string>;
+  stylesheets: Record<string, string>;
+  classes: Record<string, string>;
+}
+
+export interface NormalizedCrawl {
+  schemaVersion: 2;
+  id: string;
+  name: string;
+  status: string;
+  seedCount: number;
+  pageCount: number;
+  errorCount: number;
+  startedAt: string;
+  completedAt: string | null;
+  urls: string[];
+  config: Record<string, unknown> | null;
+  engine: string;
+  warnings: string[];
+  errors: string[];
+  pages: NormalizedPageData[];
+  entities: CrawlEntities;
+  dedupStats: {
+    rawBytesEstimate: number;
+    optimizedBytesEstimate: number;
+    reductionPercentage: number;
+  };
 }

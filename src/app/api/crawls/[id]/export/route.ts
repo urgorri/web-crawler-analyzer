@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCrawl } from "@/lib/crawl-storage";
+import { normalizeCrawl } from "@/lib/crawl-json-normalizer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -16,11 +17,22 @@ export async function GET(
       return NextResponse.json({ error: "Crawl not found" }, { status: 404 });
     }
 
-    return new NextResponse(JSON.stringify(crawl, null, 2), {
+    const { searchParams } = new URL(request.url);
+    const format = searchParams.get("format");
+
+    let data: any = crawl;
+    let filename = `crawl-${crawl.id}.json`;
+
+    if (format !== "legacy") {
+      data = normalizeCrawl(crawl);
+      filename = `crawl-${crawl.id}-v2.json`;
+    }
+
+    return new NextResponse(JSON.stringify(data, null, 2), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Content-Disposition": `attachment; filename="crawl-${crawl.id}.json"`,
+        "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });
   } catch (error) {
