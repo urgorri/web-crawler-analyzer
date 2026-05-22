@@ -46,6 +46,10 @@ export async function GET() {
       errorCount: c.errorCount,
       startedAt: c.startedAt,
       completedAt: c.completedAt,
+      avgLoadTimeMs: c.avgLoadTimeMs,
+      minLoadTimeMs: c.minLoadTimeMs,
+      maxLoadTimeMs: c.maxLoadTimeMs,
+      p95LoadTimeMs: c.p95LoadTimeMs,
     }));
 
     return NextResponse.json(serialized);
@@ -348,6 +352,9 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
         body_classes,
         html_classes,
         tech_evidence,
+        load_time_ms,
+        dom_content_loaded_ms,
+        full_content_ready_ms,
         ...rest
       } = page;
 
@@ -365,8 +372,26 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
         bodyClasses: body_classes,
         htmlClasses: html_classes,
         techEvidence: tech_evidence,
+        loadTimeMs: load_time_ms,
+        domContentLoadedMs: dom_content_loaded_ms,
+        fullContentReadyMs: full_content_ready_ms,
       };
     });
+
+    // Calculate aggregate stats
+    const loadTimes = transformedPages
+      .map((p: any) => p.loadTimeMs)
+      .filter((t: any) => typeof t === 'number') as number[];
+
+    let avgLoadTimeMs, minLoadTimeMs, maxLoadTimeMs, p95LoadTimeMs;
+
+    if (loadTimes.length > 0) {
+      loadTimes.sort((a, b) => a - b);
+      avgLoadTimeMs = Math.round(loadTimes.reduce((a, b) => a + b, 0) / loadTimes.length);
+      minLoadTimeMs = loadTimes[0];
+      maxLoadTimeMs = loadTimes[loadTimes.length - 1];
+      p95LoadTimeMs = loadTimes[Math.floor(loadTimes.length * 0.95)];
+    }
 
     try {
       await updateCrawl(crawlId, {
@@ -377,6 +402,10 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
         warnings: allWarnings,
         completedAt: new Date().toISOString(),
         pages: transformedPages,
+        avgLoadTimeMs,
+        minLoadTimeMs,
+        maxLoadTimeMs,
+        p95LoadTimeMs,
       });
     } catch (writeErr) {
       logError("persist", "Failed to update crawl final status", writeErr);

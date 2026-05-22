@@ -18,6 +18,10 @@ export interface CrawlSummary {
   errorCount: number;
   startedAt: string;
   completedAt: string | null;
+  avgLoadTimeMs?: number;
+  minLoadTimeMs?: number;
+  maxLoadTimeMs?: number;
+  p95LoadTimeMs?: number;
 }
 
 export interface PageData {
@@ -65,6 +69,9 @@ export interface PageData {
   htmlClasses: string[] | null;
   techEvidence: string[] | null;
   metaGenerator: string | null;
+  loadTimeMs?: number;
+  domContentLoadedMs?: number;
+  fullContentReadyMs?: number;
   error: string | null;
   scrapedAt: string;
 }

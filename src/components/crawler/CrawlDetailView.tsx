@@ -195,9 +195,14 @@ export default function CrawlDetailView() {
       </div>
 
       {/* Quick stats */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <MiniStat icon={<FileText className="size-4" />} label="Pages" value={crawl.pageCount} />
         <MiniStat icon={<AlertCircle className="size-4" />} label="Errors" value={crawl.errorCount} />
+        <MiniStat
+          icon={<Clock className="size-4" />}
+          label="Avg Load Time"
+          value={crawl.avgLoadTimeMs != null ? `${crawl.avgLoadTimeMs}ms` : '-'}
+        />
         <MiniStat icon={<Link2 className="size-4" />} label="Seed URLs" value={crawl.seedCount} />
         <MiniStat icon={<Activity className="size-4" />} label="Status" value={crawl.status} />
       </div>
@@ -464,13 +469,20 @@ function PagesTab({ crawl }: { crawl: CrawlDetail }) {
             {pages.map((page, idx) => (
               <AccordionItem key={page.id ?? idx} value={`page-${idx}`}>
                 <AccordionTrigger className="text-left">
-                  <div className="flex flex-col gap-1 pr-2">
-                    <span className="font-medium text-sm break-all">
-                      {page.title || page.url}
-                    </span>
-                    <span className="text-xs text-muted-foreground truncate max-w-lg">
-                      {page.url}
-                    </span>
+                  <div className="flex items-center justify-between w-full pr-4">
+                    <div className="flex flex-col gap-1 pr-2">
+                      <span className="font-medium text-sm break-all">
+                        {page.title || page.url}
+                      </span>
+                      <span className="text-xs text-muted-foreground truncate max-w-lg">
+                        {page.url}
+                      </span>
+                    </div>
+                    {page.loadTimeMs != null && (
+                      <Badge variant="outline" className="ml-2 whitespace-nowrap text-[10px] font-mono">
+                        {page.loadTimeMs}ms
+                      </Badge>
+                    )}
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
@@ -507,6 +519,26 @@ function PageDetail({ page }: { page: PageData }) {
         <InfoRow label="Word Count" value={n(page.wordCount)} />
         <InfoRow label="Char Count" value={n(page.charCount)} />
       </Section>
+
+      {/* Performance */}
+      {(page.loadTimeMs != null || page.domContentLoadedMs != null || page.fullContentReadyMs != null) && (
+        <Section title="Performance" icon={<Activity className="size-3.5" />}>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <InfoRow
+              label="DOM Content Loaded"
+              value={page.domContentLoadedMs != null ? `${page.domContentLoadedMs}ms` : '-'}
+            />
+            <InfoRow
+              label="Full Content Ready"
+              value={page.fullContentReadyMs != null ? `${page.fullContentReadyMs}ms` : '-'}
+            />
+            <InfoRow
+              label="Total Load Time"
+              value={page.loadTimeMs != null ? `${page.loadTimeMs}ms` : '-'}
+            />
+          </div>
+        </Section>
+      )}
 
       {/* Meta */}
       <Section title="Meta Information" icon={<Hash className="size-3.5" />}>

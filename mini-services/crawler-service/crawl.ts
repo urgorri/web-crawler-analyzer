@@ -50,6 +50,9 @@ interface PageResult {
   body_classes: string[];
   html_classes: string[];
   tech_evidence: string[];
+  load_time_ms: number;
+  dom_content_loaded_ms: number;
+  full_content_ready_ms: number;
 }
 
 // ─── Security ──────────────────────────────────────────────────────────────────
@@ -161,9 +164,12 @@ async function crawlPage(browser: import("playwright").Browser, url: string, con
   });
 
   const page = await context.newPage();
+  const startTime = performance.now();
   try {
     const gotoResponse = await page.goto(url, { timeout, waitUntil: "domcontentloaded" });
+    const domContentLoadedTime = performance.now();
     await page.waitForTimeout(waitNetwork);
+    const fullContentReadyTime = performance.now();
     const finalUrl = page.url();
     const status = gotoResponse?.status() ?? 200;
 
@@ -259,6 +265,9 @@ async function crawlPage(browser: import("playwright").Browser, url: string, con
       stylesheets: extracted.stylesheets, resources: resourceEntries.slice(0, 500),
       network: networkEntries.slice(0, 1000), structured_data: extracted.structured_data,
       body_classes: extracted.body_classes, html_classes: extracted.html_classes, tech_evidence: [],
+      load_time_ms: Math.round(fullContentReadyTime - startTime),
+      dom_content_loaded_ms: Math.round(domContentLoadedTime - startTime),
+      full_content_ready_ms: Math.round(fullContentReadyTime - startTime),
     };
     result.tech_evidence = extractTechEvidence(result);
     return result;
