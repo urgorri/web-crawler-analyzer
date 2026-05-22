@@ -17,6 +17,10 @@ export interface CrawlRecord {
   warnings: string[];
   errors: string[];
   lastErrorStage: string | null;
+  avgLoadTimeMs?: number;
+  minLoadTimeMs?: number;
+  maxLoadTimeMs?: number;
+  p95LoadTimeMs?: number;
   pages: Array<Record<string, unknown>>;
 }
 

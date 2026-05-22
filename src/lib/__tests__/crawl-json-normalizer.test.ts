@@ -33,6 +33,9 @@ const mockCrawl: CrawlRecord = {
       stylesheets: ["https://example.com/shared.css"],
       tech_evidence: ["React", "Tailwind"],
       body_classes: ["bg-white", "text-black"],
+      loadTimeMs: 1200,
+      domContentLoadedMs: 800,
+      fullContentReadyMs: 1200,
     },
     {
       url: "https://example.com/2",
@@ -47,6 +50,9 @@ const mockCrawl: CrawlRecord = {
       stylesheets: ["https://example.com/shared.css"],
       tech_evidence: ["React", "Framer Motion"],
       body_classes: ["bg-white", "p-4"],
+      loadTimeMs: 1500,
+      domContentLoadedMs: 1000,
+      fullContentReadyMs: 1500,
     },
     {
       url: "https://example.com/3",
@@ -61,8 +67,15 @@ const mockCrawl: CrawlRecord = {
       stylesheets: ["https://example.com/shared.css"],
       tech_evidence: ["React", "Tailwind"],
       body_classes: ["bg-white", "text-black"],
+      loadTimeMs: 1000,
+      domContentLoadedMs: 600,
+      fullContentReadyMs: 1000,
     },
   ],
+  avgLoadTimeMs: 1233,
+  minLoadTimeMs: 1000,
+  maxLoadTimeMs: 1500,
+  p95LoadTimeMs: 1500,
 };
 
 function runTest() {
@@ -102,6 +115,9 @@ function runTest() {
 
   // Verify output case
   console.log("\n--- Output Case Check ---");
+  console.log("Page 1 has loadTimeMs?", normalized.pages[0].loadTimeMs === 1200 ? "✅" : "❌");
+  console.log("Crawl has avgLoadTimeMs?", normalized.avgLoadTimeMs === 1233 ? "✅" : "❌");
+
   console.log("Page 1 title in output:", normalized.pages[0].title ? "✅" : "❌");
   console.log("Page 1 techIds count:", normalized.pages[0].techIds.length, normalized.pages[0].techIds.length === 2 ? "✅" : "❌");
 

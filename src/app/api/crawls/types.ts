@@ -56,6 +56,9 @@ export interface PageData {
   body_classes: string[];
   html_classes: string[];
   tech_evidence: string[];
+  loadTimeMs?: number;
+  domContentLoadedMs?: number;
+  fullContentReadyMs?: number;
   error?: string | null;
   scrapedAt?: string;
 }
@@ -77,6 +80,9 @@ export interface NormalizedPageData {
   visibleText: string | null;
   wordCount: number;
   charCount: number;
+  loadTimeMs?: number;
+  domContentLoadedMs?: number;
+  fullContentReadyMs?: number;
   error?: string | null;
   scrapedAt?: string;
 
@@ -152,6 +158,10 @@ export interface NormalizedCrawl {
   errors: string[];
   pages: NormalizedPageData[];
   entities: CrawlEntities;
+  avgLoadTimeMs?: number;
+  minLoadTimeMs?: number;
+  maxLoadTimeMs?: number;
+  p95LoadTimeMs?: number;
   dedupStats: {
     rawBytesEstimate: number;
     optimizedBytesEstimate: number;
