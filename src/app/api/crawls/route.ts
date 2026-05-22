@@ -70,7 +70,9 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { urls, config: rawConfig } = body as { urls?: string[]; config?: CrawlConfig };
+    const { urls, config: rawConfig, name: rawName } = body as { urls?: string[]; config?: CrawlConfig; name?: string };
+
+    const name = typeof rawName === 'string' ? rawName.trim().slice(0, 120) : undefined;
 
     if (!urls || !Array.isArray(urls) || urls.length === 0) {
       return NextResponse.json(
@@ -102,6 +104,7 @@ export async function POST(request: NextRequest) {
     const crawl = await createCrawl({
       urls: urlsToCrawl,
       config,
+      name,
     });
 
     // Execute in background
