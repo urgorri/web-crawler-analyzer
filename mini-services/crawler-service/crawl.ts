@@ -1,4 +1,5 @@
 import { chromium } from "playwright";
+import { readFile, writeFile } from "fs/promises";
 
 // ─── SSRF Policy Configuration ────────────────────────────────────────────────
 
@@ -279,17 +280,42 @@ async function crawlPage(browser: import("playwright").Browser, url: string, con
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-  const input = process.env.CRAWLER_INPUT;
-  if (!input) {
-    process.stderr.write("Error: CRAWLER_INPUT env not set\n");
+  const args = process.argv.slice(2);
+  let inputPath: string | null = null;
+  let outputPath: string | null = null;
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--input" && args[i + 1]) {
+      inputPath = args[i + 1];
+      i++;
+    } else if (args[i] === "--output" && args[i + 1]) {
+      outputPath = args[i + 1];
+      i++;
+    }
+  }
+
+  let inputData: string | undefined;
+  if (inputPath) {
+    try {
+      inputData = await readFile(inputPath, "utf-8");
+    } catch (err) {
+      process.stderr.write(`Error reading input file: ${err}\n`);
+      process.exit(1);
+    }
+  } else {
+    inputData = process.env.CRAWLER_INPUT;
+  }
+
+  if (!inputData) {
+    process.stderr.write("Error: No input provided (use --input or CRAWLER_INPUT env)\n");
     process.exit(1);
   }
 
   let body: CrawlRequest;
   try {
-    body = JSON.parse(input);
+    body = JSON.parse(inputData);
   } catch {
-    process.stderr.write("Error: Invalid JSON in CRAWLER_INPUT\n");
+    process.stderr.write("Error: Invalid JSON input\n");
     process.exit(1);
   }
 
@@ -308,6 +334,12 @@ async function main() {
   };
 
   const urls = body.urls.slice(0, config.maxPages ?? 50);
+
+  console.log("\n🚀 Starting Crawler...");
+  console.log(`📍 URLs to crawl: ${urls.length}`);
+  console.log(`⚙️  Concurrency: ${config.concurrency}`);
+  console.log(`⏱️  Timeout: ${config.timeout}ms`);
+  console.log("------------------------------------------\n");
   const warnings: string[] = [];
   const validUrls: string[] = [];
 
@@ -353,13 +385,14 @@ async function main() {
       const results = await Promise.allSettled(batch.map((url) => crawlPage(browser, url, config)));
       for (let j = 0; j < results.length; j++) {
         const result = results[j];
+        const urlIndex = i + j + 1;
+        const progressPrefix = `[${urlIndex}/${validUrls.length}]`;
+
         if (result.status === "fulfilled") {
           pages.push(result.value);
-          // Write progress to stderr for the parent to capture or directly to a file if we had the ID
-          // Since we don't have the crawl ID here directly in a clean way without changing many things,
-          // we can output progress objects to stdout/stderr that the parent can parse.
-          // But the parent is already capturing stdout for the final JSON.
-          // Let's use stderr for real-time progress updates in a specific format.
+
+          console.log(`${progressPrefix} ✅ ${result.value.url} - ${result.value.title.substring(0, 50)}...`);
+
           process.stderr.write(`PROGRESS_UPDATE:${JSON.stringify({
             url: result.value.url,
             title: result.value.title,
@@ -371,6 +404,9 @@ async function main() {
         else {
           const msg = result.reason?.message ?? String(result.reason);
           errors.push(`${sanitize(batch[j])}: ${sanitize(msg)}`);
+
+          console.log(`${progressPrefix} ❌ ${batch[j]} - Error: ${msg}`);
+
           process.stderr.write(`PROGRESS_UPDATE:${JSON.stringify({
             url: batch[j],
             error: msg,
@@ -390,7 +426,23 @@ async function main() {
     pages, errors, warnings,
     stats: { total: urls.length, success: pages.length, failed: errors.length },
   };
-  process.stdout.write(JSON.stringify(output));
+
+  const jsonOutput = JSON.stringify(output);
+  if (outputPath) {
+    try {
+      await writeFile(outputPath, jsonOutput, "utf-8");
+      console.log("\n------------------------------------------");
+      console.log(`✅ Crawl finished. Results saved to: ${outputPath}`);
+    } catch (err) {
+      process.stderr.write(`Error writing output file: ${err}\n`);
+      process.exit(1);
+    }
+  } else {
+    process.stdout.write(jsonOutput);
+  }
+
+  console.log("👋 Closing in 3 seconds...");
+  await new Promise(r => setTimeout(r, 3000));
 }
 
 main().catch((err) => {

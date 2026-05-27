@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createCrawl, listCrawls, updateCrawl } from "@/lib/crawl-storage";
 import { spawn } from "child_process";
-import { access, writeFile, rm } from "fs/promises";
-import { createWriteStream } from "fs";
+import { access, writeFile, rm, readFile } from "fs/promises";
 import os from "os";
 import path from "path";
 import { validateUrls, SSRF_ERROR_MESSAGES, formatValidationError } from "@/lib/ssrf-policy";
@@ -187,11 +186,14 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
     const crawlBuildScript = path.join(crawlerServiceDir, "dist/crawl.js");
     const crawlTsScript = path.join(crawlerServiceDir, "crawl.ts");
     const tmpDir = os.tmpdir();
-    const stdoutLogFile = path.join(tmpDir, `crawl-${crawlId}-stdout.log`);
-    const stderrLogFile = path.join(tmpDir, `crawl-${crawlId}-stderr.log`);
+
+    const inputFilePath = path.join(tmpDir, `crawl-${crawlId}-input.json`);
+    const outputFilePath = path.join(tmpDir, `crawl-${crawlId}-output.json`);
+
+    await writeFile(inputFilePath, payload);
 
     let command = process.execPath;
-    let args = [crawlBuildScript];
+    let scriptPath = crawlBuildScript;
     const isProduction = process.env.NODE_ENV === "production";
     const allowTsFallback = process.env.ALLOW_TS_CRAWLER_FALLBACK === "true";
 
@@ -207,122 +209,93 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
       }
 
       command = path.join(process.cwd(), "node_modules", ".bin", "tsx");
-      args = [crawlTsScript];
+      scriptPath = crawlTsScript;
       warnings.push(
         "Using development TypeScript fallback for crawler execution (ALLOW_TS_CRAWLER_FALLBACK=true).",
       );
     }
 
-    // Stage: spawn - launching the crawler subprocess
-    const child = spawn(command, args, {
+    const crawlerArgs = ["--input", inputFilePath, "--output", outputFilePath];
+
+    let shellCommand = "";
+    let shellArgs: string[] = [];
+    const platform = os.platform();
+
+    if (platform === "win32") {
+      // Windows: use 'start' to open a new cmd window
+      const fullCmd = `"${command}" "${scriptPath}" ${crawlerArgs.map(a => `"${a}"`).join(" ")}`;
+      shellCommand = "cmd.exe";
+      shellArgs = ["/c", "start", "Crawler Progress", "cmd.exe", "/c", `${fullCmd}`];
+    } else if (platform === "darwin") {
+      // macOS: use 'open -a Terminal'
+      const fullCmd = `"${command}" "${scriptPath}" ${crawlerArgs.map(a => `"${a}"`).join(" ")}`;
+      const appleScript = `tell application "Terminal" to do script "${fullCmd.replace(/"/g, '\\"')}"`;
+      shellCommand = "osascript";
+      shellArgs = ["-e", appleScript];
+    } else {
+      // Linux: try common terminal emulators
+      const fullCmd = `"${command}" "${scriptPath}" ${crawlerArgs.map(a => `"${a}"`).join(" ")}`;
+      shellCommand = "x-terminal-emulator";
+      shellArgs = ["-e", `bash -c '${fullCmd}'`];
+
+      // Fallback if x-terminal-emulator is not available
+      try {
+        await access("/usr/bin/x-terminal-emulator");
+      } catch {
+        shellCommand = "gnome-terminal";
+        shellArgs = ["--", "bash", "-c", `${fullCmd}`];
+      }
+    }
+
+    console.log(`[API] Spawning terminal for crawl ${crawlId} on platform ${platform}`);
+
+    // Stage: spawn - launching the crawler terminal
+    const child = spawn(shellCommand, shellArgs, {
       cwd: crawlerServiceDir,
       detached: true,
-      env: {
-        ...process.env,
-        CRAWLER_INPUT: payload,
-      },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: "ignore",
     });
 
-    const stdoutLogStream = createWriteStream(stdoutLogFile, { flags: "a" });
-    const stderrLogStream = createWriteStream(stderrLogFile, { flags: "a" });
-
-    let stdoutBuffer = "";
-    let stderrBuffer = "";
-    let stderrLineBuffer = "";
-
-    child.stdout?.on("data", (chunk) => {
-      const text = chunk.toString();
-      stdoutBuffer += text;
-      stdoutLogStream.write(chunk);
-    });
-
-    child.stderr?.on("data", (chunk) => {
-      const text = chunk.toString();
-      stderrBuffer += text;
-      stderrLogStream.write(chunk);
-
-      // Handle progress updates by buffering lines
-      stderrLineBuffer += text;
-      let lineEndIndex;
-      while ((lineEndIndex = stderrLineBuffer.indexOf("\n")) !== -1) {
-        const line = stderrLineBuffer.substring(0, lineEndIndex).trim();
-        stderrLineBuffer = stderrLineBuffer.substring(lineEndIndex + 1);
-
-        if (line.startsWith("PROGRESS_UPDATE:")) {
-          try {
-            const progressData = JSON.parse(line.substring("PROGRESS_UPDATE:".length));
-            const progressFile = path.join(process.cwd(), "output", `${crawlId}.progress.json`);
-            writeFile(progressFile, JSON.stringify({
-              ...progressData,
-              updatedAt: new Date().toISOString()
-            })).catch(err => console.error("[API] Failed to write progress file:", err));
-          } catch (e) {
-            // Ignore parse errors for progress
-          }
-        }
-      }
-
-      console.error(`[API] Crawl ${crawlId} stderr:`, text.trim());
-    });
+    child.unref();
 
     const timeoutMs = Math.max((config.timeout ?? 30000) * urls.length + 60000, 120000);
+    const pollInterval = 2000;
+    const maxPolls = Math.ceil(timeoutMs / pollInterval);
 
-    // Stage: poll - waiting for subprocess to complete
-    let exitCode: number;
-    try {
-      exitCode = await new Promise<number>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          child.kill("SIGTERM");
-          reject(new Error("Crawl subprocess timed out"));
-        }, timeoutMs);
+    let crawlResult: any = null;
 
-        child.on("error", (err) => {
-          clearTimeout(timeout);
-          reject(err);
-        });
-
-        child.on("close", (code) => {
-          clearTimeout(timeout);
-          resolve(code ?? 1);
-        });
-      });
-    } catch (pollError) {
-      const message = pollError instanceof Error ? pollError.message : "Unknown polling error";
-      logError("poll", message, pollError);
-      await updateCrawlError("poll", message, "failed");
-      return;
+    // Stage: poll - waiting for the output file to appear and be valid
+    for (let i = 0; i < maxPolls; i++) {
+      try {
+        await access(outputFilePath);
+        const outputData = await readFile(outputFilePath, "utf-8");
+        crawlResult = JSON.parse(outputData);
+        break; // Success!
+      } catch (e) {
+        // Not ready yet
+        await new Promise(r => setTimeout(r, pollInterval));
+      }
     }
 
-    stdoutLogStream.end();
-    stderrLogStream.end();
+    // Update progress file with final state before cleanup to ensure frontend sees results
+    if (crawlResult) {
+      const progressFile = path.join(process.cwd(), "output", `${crawlId}.progress.json`);
+      await writeFile(progressFile, JSON.stringify({
+        pageCount: crawlResult.stats.success,
+        errorCount: crawlResult.stats.failed,
+        status: crawlResult.status === "completed" ? "completed" : "partial",
+        updatedAt: new Date().toISOString()
+      })).catch(err => console.error("[API] Failed to write final progress file:", err));
+    }
 
-    // Cleanup progress file
-    const progressFile = path.join(process.cwd(), "output", `${crawlId}.progress.json`);
-    rm(progressFile).catch(() => {});
+    // Cleanup input and output files
+    rm(inputFilePath).catch(() => {});
+    rm(outputFilePath).catch(() => {});
 
-    if (exitCode !== 0) {
-      const message = `Crawler exited with code ${exitCode}. ${stderrBuffer.substring(0, 500)}`;
+    if (!crawlResult) {
+      const message = "Crawler timed out or failed to produce output file.";
       logError("poll", message);
       await updateCrawlError("poll", message, "failed");
-      return;
-    }
-
-    // Stage: parse - parsing JSON output from crawler
-    let crawlResult: {
-      status: string;
-      pages: Array<Record<string, unknown>>;
-      errors: string[];
-      warnings: string[];
-      stats: { total: number; success: number; failed: number };
-    };
-
-    try {
-      crawlResult = JSON.parse(stdoutBuffer);
-    } catch (parseError) {
-      const message = "Crawler process did not produce valid JSON output";
-      logError("parse", message, parseError);
-      await updateCrawlError("parse", message, "failed");
       return;
     }
 

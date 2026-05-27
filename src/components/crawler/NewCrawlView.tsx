@@ -321,64 +321,41 @@ export default function NewCrawlView() {
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>
-              {isFinished ? 'Crawl Finished' : 'Crawl Progress'}
+              {isFinished ? 'Crawl Finished' : 'Crawl in Progress'}
             </DialogTitle>
             <DialogDescription>
               {isFinished
                 ? 'The analysis is complete. You can now view the detailed report.'
-                : 'We are analyzing your URLs. You can close this dialog; the crawl will continue in the background.'}
+                : 'The crawler is running in a separate terminal window. You can monitor the progress there.'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-6 py-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">
-                  {isFinished ? 'Final Status' : 'Progress'}
-                </span>
-                <span className="font-medium">
-                  {progress ? Math.min(Math.round(((progress.pageCount + progress.errorCount) / urlList.length) * 100), 100) : 0}%
-                </span>
+            {!isFinished && (
+              <div className="flex flex-col items-center justify-center gap-4 py-8">
+                <Loader2 className="size-12 animate-spin text-primary" />
+                <p className="text-center text-sm text-muted-foreground">
+                  Please check the terminal window that just opened to see the live progress.
+                </p>
               </div>
-              <Progress
-                value={progress ? ((progress.pageCount + progress.errorCount) / urlList.length) * 100 : 0}
-                className={isFinished ? "bg-emerald-100 [&>div]:bg-emerald-500" : ""}
-              />
-            </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-lg border p-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <CheckCircle2 className="size-4 text-emerald-500" />
-                  Pages
-                </div>
-                <div className="mt-1 text-2xl font-bold">{progress?.pageCount ?? 0}</div>
-              </div>
-              <div className="rounded-lg border p-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <XCircle className="size-4 text-destructive" />
-                  Errors
-                </div>
-                <div className="mt-1 text-2xl font-bold">{progress?.errorCount ?? 0}</div>
-              </div>
-            </div>
-
-            {!isFinished && progress?.url && (
-              <div className="space-y-1.5">
-                <div className="text-xs font-semibold text-muted-foreground uppercase">Current/Last URL</div>
-                <div className="rounded-md bg-muted p-2 text-xs font-mono break-all truncate">
-                  {progress.url}
-                </div>
-                {progress.title && (
-                  <div className="text-xs text-muted-foreground italic truncate">
-                    &quot;{progress.title}&quot;
+            {isFinished && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-lg border p-3">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CheckCircle2 className="size-4 text-emerald-500" />
+                    Pages
                   </div>
-                )}
-                {progress.error && (
-                  <div className="text-xs text-destructive truncate">
-                    Error: {progress.error}
+                  <div className="mt-1 text-2xl font-bold">{progress?.pageCount ?? 0}</div>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <XCircle className="size-4 text-destructive" />
+                    Errors
                   </div>
-                )}
+                  <div className="mt-1 text-2xl font-bold">{progress?.errorCount ?? 0}</div>
+                </div>
               </div>
             )}
 
