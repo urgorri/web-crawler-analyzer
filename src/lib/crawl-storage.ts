@@ -114,7 +114,7 @@ export async function updateCrawl(id: string, patch: Partial<CrawlRecord>) {
 export async function listCrawls() {
   await ensureOutputDir();
   const entries = await readdir(outputDir);
-  const files = entries.filter((name) => name.endsWith(".json"));
+  const files = entries.filter((name) => name.endsWith(".json") && !name.endsWith(".progress.json"));
   const crawls: CrawlRecord[] = [];
 
   for (const fileName of files) {

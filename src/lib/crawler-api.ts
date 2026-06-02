@@ -1,3 +1,5 @@
+import type { DomainIntel } from "@/app/api/crawls/types";
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface CrawlConfig {
@@ -161,4 +163,3 @@ export async function getCrawlProgress(id: string): Promise<CrawlProgress | null
   }
   return res.json() as Promise<CrawlProgress>;
 }
-import type { DomainIntel } from "@/app/api/crawls/types";

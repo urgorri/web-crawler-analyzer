@@ -359,7 +359,6 @@ async function main() {
         await browser.close();
     }
     const observedDomain = getObservedDomain(pages.flatMap((page) => [page.final_url, page.url, page.canonical].filter(Boolean)), seedDomain);
-    const domainIntelWarnings = [];
     const domainIntelErrors = [];
     let dnsIntel = {
         a: [],
@@ -382,12 +381,10 @@ async function main() {
             dnsIntel.aaaa.length === 0 &&
             dnsIntel.ns.length === 0 &&
             dnsIntel.mx.length === 0) {
-            domainIntelWarnings.push(`DNS returned no records for ${seedDomain}`);
         }
     }
     catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        domainIntelWarnings.push(`DNS lookup failed for ${seedDomain}: ${message}`);
         domainIntelErrors.push(message);
     }
     const primaryIp = selectPrimaryIp(dnsIntel);
@@ -395,49 +392,30 @@ async function main() {
         const whois = await lookupWhois(seedDomain, primaryIp);
         whoisDomain = whois.domain;
         whoisIp = whois.ip;
-        if (!whoisDomain) {
-            domainIntelWarnings.push(`WHOIS domain lookup returned no structured data for ${seedDomain}`);
-        }
-        if (primaryIp && !whoisIp) {
-            domainIntelWarnings.push(`WHOIS IP lookup returned no structured data for ${primaryIp}`);
-        }
     }
     catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        domainIntelWarnings.push(`WHOIS lookup failed for ${seedDomain}: ${message}`);
         domainIntelErrors.push(message);
     }
     try {
         rdapIp = await lookupRdapIp(primaryIp);
-        if (primaryIp && !rdapIp) {
-            domainIntelWarnings.push(`RDAP lookup returned no structured data for ${primaryIp}`);
-        }
     }
     catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        domainIntelWarnings.push(`RDAP lookup failed for ${primaryIp ?? seedDomain}: ${message}`);
         domainIntelErrors.push(message);
     }
     try {
         traceroute = await runTraceroute(primaryIp ?? seedDomain);
-        if (primaryIp && traceroute.length === 0) {
-            domainIntelWarnings.push(`Traceroute returned no hops for ${primaryIp}`);
-        }
     }
     catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        domainIntelWarnings.push(`Traceroute failed for ${primaryIp ?? seedDomain}: ${message}`);
         domainIntelErrors.push(message);
     }
     try {
         ports = await scanPorts(primaryIp, config.portScanPorts ?? DEFAULT_PORTS);
-        if (primaryIp && ports.length === 0) {
-            domainIntelWarnings.push(`Port scan returned no results for ${primaryIp}`);
-        }
     }
     catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        domainIntelWarnings.push(`Port scan failed for ${primaryIp ?? seedDomain}: ${message}`);
         domainIntelErrors.push(message);
     }
     const domainIntel = {
@@ -451,14 +429,14 @@ async function main() {
         rdapIp,
         traceroute,
         ports,
-        warnings: domainIntelWarnings,
+        warnings: [],
         errors: domainIntelErrors,
     };
     const output = {
         status: errors.length === 0 ? "completed" : "partial",
         pages,
         errors,
-        warnings: [...warnings, ...domainIntelWarnings],
+        warnings,
         domainIntel,
         stats: { total: urls.length, success: pages.length, failed: errors.length },
     };
