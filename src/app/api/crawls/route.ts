@@ -6,6 +6,7 @@ import { createWriteStream } from "fs";
 import os from "os";
 import path from "path";
 import { validateUrls, SSRF_ERROR_MESSAGES, formatValidationError } from "@/lib/ssrf-policy";
+import { getRegistrableDomainFromUrl } from "@/lib/domain-utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -101,18 +102,74 @@ export async function POST(request: NextRequest) {
       console.warn("[API] URLs rejected by SSRF policy:", rejections);
     }
 
+    const seedDomain = getRegistrableDomainFromUrl(validUrls[0]);
+    if (!seedDomain) {
+      return NextResponse.json(
+        { error: "Unable to determine the crawl domain from the first valid URL." },
+        { status: 400 },
+      );
+    }
+
+    const scopeRejections: Array<{ url: string; reason: string }> = [];
+    const urlsInScope: string[] = [];
+    for (const url of validUrls) {
+      const urlDomain = getRegistrableDomainFromUrl(url);
+      if (!urlDomain || urlDomain !== seedDomain) {
+        scopeRejections.push({
+          url,
+          reason: `Out of scope. This crawl only accepts URLs under ${seedDomain}.`,
+        });
+        continue;
+      }
+      urlsInScope.push(url);
+    }
+
+    if (urlsInScope.length === 0) {
+      const errorMessage = formatValidationError(scopeRejections);
+      return NextResponse.json(
+        { error: errorMessage || `No URLs matched the crawl domain ${seedDomain}.` },
+        { status: 400 },
+      );
+    }
+
     const config = rawConfig ?? {};
     const maxPages = config.maxPages ?? 50;
-    const urlsToCrawl = validUrls.slice(0, maxPages);
+    const urlsToCrawl = urlsInScope.slice(0, maxPages);
+    const warnings = [
+      ...rejections.map((item) => `${item.url}: ${item.reason}`),
+      ...scopeRejections.map((item) => `${item.url}: ${item.reason}`),
+    ];
 
     const crawl = await createCrawl({
       urls: urlsToCrawl,
       config,
       name,
+      warnings,
+      domainIntel: {
+        seedDomain,
+        observedDomain: null,
+        seedUrl: urlsToCrawl[0],
+        resolvedIps: [],
+        dns: {
+          a: [],
+          aaaa: [],
+          ns: [],
+          mx: [],
+          cname: [],
+          txt: [],
+        },
+        whoisDomain: null,
+        whoisIp: null,
+        rdapIp: null,
+        traceroute: [],
+        ports: [],
+        warnings,
+        errors: [],
+      },
     });
 
     // Execute in background
-    runCrawl(crawl.id, urlsToCrawl, config).catch((err) => {
+    runCrawl(crawl.id, urlsToCrawl, config, seedDomain).catch((err) => {
       console.error("[API] Background crawl error:", err);
     });
 
@@ -134,7 +191,7 @@ export async function POST(request: NextRequest) {
 
 // ─── Background crawl ─────────────────────────────────────────────────────────
 
-async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
+async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, seedDomain: string) {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -171,6 +228,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
   try {
     const payload = JSON.stringify({
       urls,
+      scopeDomain: seedDomain,
       config: {
         timeout: config.timeout ?? 30000,
         maxPages: urls.length,
@@ -314,6 +372,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
       pages: Array<Record<string, unknown>>;
       errors: string[];
       warnings: string[];
+      domainIntel?: Record<string, unknown> | null;
       stats: { total: number; success: number; failed: number };
     };
 
@@ -402,6 +461,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig) {
         warnings: allWarnings,
         completedAt: new Date().toISOString(),
         pages: transformedPages,
+        domainIntel: (crawlResult.domainIntel as any) ?? null,
         avgLoadTimeMs,
         minLoadTimeMs,
         maxLoadTimeMs,

@@ -144,7 +144,7 @@ export function normalizeCrawl(record: CrawlRecord): NormalizedCrawl {
   const rawBytesEstimate = Buffer.byteLength(JSON.stringify(record));
 
   const result: NormalizedCrawl = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     id: record.id,
     name: record.name,
     status: record.status,
@@ -156,6 +156,7 @@ export function normalizeCrawl(record: CrawlRecord): NormalizedCrawl {
     urls: record.urls,
     config: record.config,
     engine: record.engine,
+    domainIntel: record.domainIntel ?? null,
     warnings: record.warnings,
     errors: record.errors,
     pages: normalizedPages,

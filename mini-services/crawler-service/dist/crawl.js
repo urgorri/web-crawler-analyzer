@@ -1,7 +1,9 @@
 import { chromium } from "playwright";
+import { getObservedDomain, getSeedDomain, lookupRdapIp, lookupWhois, resolveDns, runTraceroute, scanPorts, selectPrimaryIp, } from "./domain-intel.js";
 // ─── SSRF Policy Configuration ────────────────────────────────────────────────
 const ALLOW_PRIVATE_TARGETS = process.env.ALLOW_PRIVATE_TARGETS === 'true';
 const IS_DEV = process.env.NODE_ENV === 'development';
+const DEFAULT_PORTS = [21, 22, 25, 53, 80, 110, 143, 443, 587, 8080, 8443, 3306, 5432, 6379];
 // ─── Security ──────────────────────────────────────────────────────────────────
 const SENSITIVE_PATTERNS = [
     /cookie[^;]*;?/gi, /token[=:][^\s&"']*/gi,
@@ -282,6 +284,7 @@ async function main() {
     const urls = body.urls.slice(0, config.maxPages ?? 50);
     const warnings = [];
     const validUrls = [];
+    const seedDomain = body.scopeDomain?.trim().toLowerCase() || getSeedDomain(urls[0]);
     for (const url of urls) {
         try {
             const parsed = new URL(url);
@@ -296,6 +299,10 @@ async function main() {
                     ? `Blocked (private network, set ALLOW_PRIVATE_TARGETS=true to allow): ${sanitize(url)}`
                     : `Blocked (private network not allowed): ${sanitize(url)}`;
                 warnings.push(blockReason);
+                continue;
+            }
+            if (getSeedDomain(url) !== seedDomain) {
+                warnings.push(`Out of scope: ${sanitize(url)} (crawl domain is ${seedDomain})`);
                 continue;
             }
             validUrls.push(url);
@@ -351,9 +358,108 @@ async function main() {
     finally {
         await browser.close();
     }
+    const observedDomain = getObservedDomain(pages.flatMap((page) => [page.final_url, page.url, page.canonical].filter(Boolean)), seedDomain);
+    const domainIntelWarnings = [];
+    const domainIntelErrors = [];
+    let dnsIntel = {
+        a: [],
+        aaaa: [],
+        ns: [],
+        mx: [],
+        cname: [],
+        txt: [],
+    };
+    let resolvedIps = [];
+    let whoisDomain = null;
+    let whoisIp = null;
+    let rdapIp = null;
+    let traceroute = [];
+    let ports = [];
+    try {
+        dnsIntel = await resolveDns(seedDomain);
+        resolvedIps = [...dnsIntel.a, ...dnsIntel.aaaa];
+        if (dnsIntel.a.length === 0 &&
+            dnsIntel.aaaa.length === 0 &&
+            dnsIntel.ns.length === 0 &&
+            dnsIntel.mx.length === 0) {
+            domainIntelWarnings.push(`DNS returned no records for ${seedDomain}`);
+        }
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        domainIntelWarnings.push(`DNS lookup failed for ${seedDomain}: ${message}`);
+        domainIntelErrors.push(message);
+    }
+    const primaryIp = selectPrimaryIp(dnsIntel);
+    try {
+        const whois = await lookupWhois(seedDomain, primaryIp);
+        whoisDomain = whois.domain;
+        whoisIp = whois.ip;
+        if (!whoisDomain) {
+            domainIntelWarnings.push(`WHOIS domain lookup returned no structured data for ${seedDomain}`);
+        }
+        if (primaryIp && !whoisIp) {
+            domainIntelWarnings.push(`WHOIS IP lookup returned no structured data for ${primaryIp}`);
+        }
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        domainIntelWarnings.push(`WHOIS lookup failed for ${seedDomain}: ${message}`);
+        domainIntelErrors.push(message);
+    }
+    try {
+        rdapIp = await lookupRdapIp(primaryIp);
+        if (primaryIp && !rdapIp) {
+            domainIntelWarnings.push(`RDAP lookup returned no structured data for ${primaryIp}`);
+        }
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        domainIntelWarnings.push(`RDAP lookup failed for ${primaryIp ?? seedDomain}: ${message}`);
+        domainIntelErrors.push(message);
+    }
+    try {
+        traceroute = await runTraceroute(primaryIp ?? seedDomain);
+        if (primaryIp && traceroute.length === 0) {
+            domainIntelWarnings.push(`Traceroute returned no hops for ${primaryIp}`);
+        }
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        domainIntelWarnings.push(`Traceroute failed for ${primaryIp ?? seedDomain}: ${message}`);
+        domainIntelErrors.push(message);
+    }
+    try {
+        ports = await scanPorts(primaryIp, config.portScanPorts ?? DEFAULT_PORTS);
+        if (primaryIp && ports.length === 0) {
+            domainIntelWarnings.push(`Port scan returned no results for ${primaryIp}`);
+        }
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        domainIntelWarnings.push(`Port scan failed for ${primaryIp ?? seedDomain}: ${message}`);
+        domainIntelErrors.push(message);
+    }
+    const domainIntel = {
+        seedDomain,
+        observedDomain,
+        seedUrl: validUrls[0],
+        resolvedIps,
+        dns: dnsIntel,
+        whoisDomain,
+        whoisIp,
+        rdapIp,
+        traceroute,
+        ports,
+        warnings: domainIntelWarnings,
+        errors: domainIntelErrors,
+    };
     const output = {
         status: errors.length === 0 ? "completed" : "partial",
-        pages, errors, warnings,
+        pages,
+        errors,
+        warnings: [...warnings, ...domainIntelWarnings],
+        domainIntel,
         stats: { total: urls.length, success: pages.length, failed: errors.length },
     };
     process.stdout.write(JSON.stringify(output));

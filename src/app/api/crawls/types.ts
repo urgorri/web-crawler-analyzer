@@ -63,6 +63,39 @@ export interface PageData {
   scrapedAt?: string;
 }
 
+export interface DomainIntel {
+  seedDomain: string;
+  observedDomain: string | null;
+  seedUrl: string;
+  resolvedIps: string[];
+  dns: {
+    a: string[];
+    aaaa: string[];
+    ns: string[];
+    mx: Array<{ exchange: string; priority: number }>;
+    cname: string[];
+    txt: string[];
+  };
+  whoisDomain: Record<string, unknown> | null;
+  whoisIp: Record<string, unknown> | null;
+  rdapIp: Record<string, unknown> | null;
+  traceroute: Array<{
+    hop: number;
+    ip: string | null;
+    rtt1?: string;
+    rtt2?: string;
+    rtt3?: string;
+  }>;
+  ports: Array<{
+    port: number;
+    status: "open" | "closed" | "filtered" | "unknown";
+    banner?: string | null;
+    service?: string | null;
+  }>;
+  warnings: string[];
+  errors: string[];
+}
+
 // ─── V2 Optimized Schema (Normalized) ─────────────────────────────────────────
 
 export interface NormalizedPageData {
@@ -145,7 +178,7 @@ export interface CrawlEntities {
 }
 
 export interface NormalizedCrawl {
-  schemaVersion: 3;
+  schemaVersion: 4;
   id: string;
   name: string;
   status: string;
@@ -157,6 +190,7 @@ export interface NormalizedCrawl {
   urls: string[];
   config: Record<string, unknown> | null;
   engine: string;
+  domainIntel?: DomainIntel | null;
   warnings: string[];
   errors: string[];
   pages: NormalizedPageData[];

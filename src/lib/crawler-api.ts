@@ -80,6 +80,7 @@ export interface CrawlDetail extends CrawlSummary {
   urls: string[];
   config: Record<string, unknown> | null;
   engine: string;
+  domainIntel?: DomainIntel | null;
   warnings: string[] | null;
   errors: string[] | null;
   pages: PageData[];
@@ -160,3 +161,4 @@ export async function getCrawlProgress(id: string): Promise<CrawlProgress | null
   }
   return res.json() as Promise<CrawlProgress>;
 }
+import type { DomainIntel } from "@/app/api/crawls/types";

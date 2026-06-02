@@ -1,6 +1,8 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
+import type { DomainIntel } from "@/app/api/crawls/types";
+import { getRegistrableDomainFromUrl } from "@/lib/domain-utils";
 
 export interface CrawlRecord {
   id: string;
@@ -14,6 +16,7 @@ export interface CrawlRecord {
   urls: string[];
   config: Record<string, unknown> | null;
   engine: string;
+  domainIntel?: DomainIntel | null;
   warnings: string[];
   errors: string[];
   lastErrorStage: string | null;
@@ -34,7 +37,13 @@ function crawlPath(id: string) {
   return path.join(outputDir, `${id}.json`);
 }
 
-export async function createCrawl(input: { urls: string[]; config: Record<string, unknown> | null; name?: string }) {
+export async function createCrawl(input: {
+  urls: string[];
+  config: Record<string, unknown> | null;
+  name?: string;
+  warnings?: string[];
+  domainIntel?: DomainIntel | null;
+}) {
   await ensureOutputDir();
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
@@ -45,7 +54,11 @@ export async function createCrawl(input: { urls: string[]; config: Record<string
     name = `Crawl ${now.slice(0, 19).replace("T", " ")}`;
     if (input.urls.length > 0) {
       try {
-        const domains = new Set(input.urls.map(u => new URL(u).hostname));
+        const domains = new Set(
+          input.urls
+            .map((u) => getRegistrableDomainFromUrl(u))
+            .filter((value): value is string => !!value),
+        );
         const timestamp = now.slice(0, 19).replace("T", " ");
         if (domains.size === 1) {
           name = `${Array.from(domains)[0]} ${timestamp}`;
@@ -70,7 +83,8 @@ export async function createCrawl(input: { urls: string[]; config: Record<string
     urls: input.urls,
     config: input.config,
     engine: "playwright",
-    warnings: [],
+    domainIntel: input.domainIntel ?? null,
+    warnings: input.warnings ?? [],
     errors: [],
     lastErrorStage: null,
     pages: [],

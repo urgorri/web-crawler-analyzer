@@ -37,6 +37,7 @@ import { Separator } from '@/components/ui/separator';
 
 import { useCrawlerStore } from '@/lib/crawler-store';
 import { createCrawl, getCrawlProgress, type CrawlConfig } from '@/lib/crawler-api';
+import { getRegistrableDomainFromUrl } from '@/lib/domain-utils';
 import {
   Dialog,
   DialogContent,
@@ -80,6 +81,11 @@ export default function NewCrawlView() {
     .filter(Boolean);
 
   const urlErrors = urlList.filter((u) => !isValidUrl(u));
+  const detectedDomains = Array.from(
+    new Set(urlList.map((u) => getRegistrableDomainFromUrl(u)).filter(Boolean)),
+  );
+  const scopeDomain = detectedDomains[0] ?? null;
+  const scopeErrors = detectedDomains.length > 1;
 
   const mutation = useMutation({
     mutationFn: (vars: { urls: string[]; config: CrawlConfig; name?: string }) =>
@@ -122,6 +128,10 @@ export default function NewCrawlView() {
       toast.error(
         `${urlErrors.length} invalid URL(s) detected. Only http/https allowed.`,
       );
+      return;
+    }
+    if (scopeErrors) {
+      toast.error('All URLs in a crawl must belong to the same registrable domain.');
       return;
     }
 
@@ -187,12 +197,28 @@ export default function NewCrawlView() {
               <span className="text-muted-foreground">
                 {urlList.length} URL{urlList.length !== 1 ? 's' : ''}
               </span>
+              {scopeDomain && (
+                <span className="text-muted-foreground">
+                  Scope: <span className="font-medium text-foreground">{scopeDomain}</span>
+                </span>
+              )}
               {urlErrors.length > 0 && (
                 <span className="flex items-center gap-1 text-destructive">
                   <AlertCircle className="size-3" />
                   {urlErrors.length} invalid
                 </span>
               )}
+              {scopeErrors && (
+                <span className="flex items-center gap-1 text-destructive">
+                  <AlertCircle className="size-3" />
+                  Multiple domains
+                </span>
+              )}
+            </div>
+          )}
+          {scopeErrors && (
+            <div className="mt-2 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
+              All URLs must share the same registrable domain.
             </div>
           )}
           {urlErrors.length > 0 && (
