@@ -81,10 +81,17 @@ For more details on the security implementation, see `src/lib/ssrf-policy.ts`.
 - `npm run prebuild`: Builds the standalone crawler service.
 - `npm run lint`: Runs the linter.
 
+## Documentation
+
+- [Contributing](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
+- [Disclaimer](DISCLAIMER.md)
+
 ## Credits
 
 Built by [Gastón Urgorri](https://github.com/urgorri).
 
 ## License
 
-This project is open-source. Please check the repository for license details.
+This project is open-source under the [MIT License](LICENSE).
