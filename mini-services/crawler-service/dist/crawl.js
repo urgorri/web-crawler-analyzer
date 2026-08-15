@@ -1,4 +1,5 @@
 import { chromium } from "playwright";
+import * as fs from "fs";
 import { getObservedDomain, getSeedDomain, lookupRdapIp, lookupWhois, resolveDns, runTraceroute, scanPorts, selectPrimaryIp, } from "./domain-intel.js";
 // ─── SSRF Policy Configuration ────────────────────────────────────────────────
 const ALLOW_PRIVATE_TARGETS = process.env.ALLOW_PRIVATE_TARGETS === 'true';
@@ -257,9 +258,16 @@ async function crawlPage(browser, url, config) {
 }
 // ─── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
-    const input = process.env.CRAWLER_INPUT;
+    let input = "";
+    try {
+        input = fs.readFileSync(0, "utf-8");
+    }
+    catch (error) {
+        process.stderr.write("Error: Failed to read from stdin\n");
+        process.exit(1);
+    }
     if (!input) {
-        process.stderr.write("Error: CRAWLER_INPUT env not set\n");
+        process.stderr.write("Error: CRAWLER_INPUT from stdin is empty\n");
         process.exit(1);
     }
     let body;
@@ -267,7 +275,7 @@ async function main() {
         body = JSON.parse(input);
     }
     catch {
-        process.stderr.write("Error: Invalid JSON in CRAWLER_INPUT\n");
+        process.stderr.write("Error: Invalid JSON in stdin\n");
         process.exit(1);
     }
     if (!body.urls || !Array.isArray(body.urls) || body.urls.length === 0) {
