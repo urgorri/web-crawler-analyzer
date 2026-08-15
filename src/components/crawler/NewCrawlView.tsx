@@ -38,6 +38,7 @@ import { Separator } from '@/components/ui/separator';
 import { useCrawlerStore } from '@/lib/crawler-store';
 import { createCrawl, getCrawlProgress, type CrawlConfig } from '@/lib/crawler-api';
 import { getRegistrableDomainFromUrl } from '@/lib/domain-utils';
+import { isValidUrl } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -46,17 +47,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function isValidUrl(s: string): boolean {
-  try {
-    const u = new URL(s.trim());
-    return u.protocol === 'http:' || u.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 

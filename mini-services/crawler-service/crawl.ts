@@ -29,6 +29,7 @@ interface CrawlConfig {
 }
 
 interface CrawlRequest {
+  crawlId?: string;
   urls: string[];
   config?: CrawlConfig;
   scopeDomain?: string;
@@ -376,12 +377,17 @@ async function main() {
         const result = results[j];
         if (result.status === "fulfilled") {
           pages.push(result.value);
-          // Write progress to stderr for the parent to capture or directly to a file if we had the ID
-          // Since we don't have the crawl ID here directly in a clean way without changing many things,
-          // we can output progress objects to stdout/stderr that the parent can parse.
-          // But the parent is already capturing stdout for the final JSON.
-          // Let's use stderr for real-time progress updates in a specific format.
+          /**
+           * IPC Progress Reporting
+           *
+           * We use stderr to stream real-time progress updates to the parent process.
+           * This decouples the crawler from the parent process's file system and
+           * allows the parent to handle progress storage/broadcasting.
+           *
+           * (stdout is reserved exclusively for the final JSON result).
+           */
           process.stderr.write(`PROGRESS_UPDATE:${JSON.stringify({
+            crawlId: body.crawlId,
             url: result.value.url,
             title: result.value.title,
             pageCount: pages.length,
@@ -393,6 +399,7 @@ async function main() {
           const msg = result.reason?.message ?? String(result.reason);
           errors.push(`${sanitize(batch[j])}: ${sanitize(msg)}`);
           process.stderr.write(`PROGRESS_UPDATE:${JSON.stringify({
+            crawlId: body.crawlId,
             url: batch[j],
             error: msg,
             pageCount: pages.length,
