@@ -58,9 +58,10 @@ const LIB_PATTERNS = [
     "three\\.js", "d3", "chart\\.js", "lodash", "moment", "axios", "algolia",
     "gtm", "ga\\.", "google-analytics", "fontawesome", "material-ui", "ant-design",
     "chakra", "tailwindcss", "styled-components", "emotion", "redux", "mobx",
-    "pinia", "zustand", "firebase", "supabase", "prisma", "wordpress", "drupal",
+    "pinia", "zustand", "firebase", "supabase", "wordpress", "drupal",
     "shopify", "squarespace", "wix",
 ];
+const LIB_REGEXPS = LIB_PATTERNS.map((lib) => ({ lib, regex: new RegExp(lib, "i") }));
 function extractTechEvidence(page) {
     const evidence = [];
     const seen = new Set();
@@ -76,8 +77,8 @@ function extractTechEvidence(page) {
         add(`generator:${page.meta_generator}`);
     for (const url of [...page.scripts, ...page.stylesheets]) {
         const lower = url.toLowerCase();
-        for (const lib of LIB_PATTERNS)
-            if (new RegExp(lib, "i").test(lower))
+        for (const { lib, regex } of LIB_REGEXPS)
+            if (regex.test(lower))
                 add(`lib-url:${lib}`);
     }
     const domains = new Set();
