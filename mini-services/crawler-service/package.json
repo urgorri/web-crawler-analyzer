@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx crawl.ts",
     "build": "tsc -p tsconfig.json",
+    "test": "tsx __tests__/domain-intel.test.ts",
     "start": "node dist/crawl.js"
   },
   "dependencies": {
