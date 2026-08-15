@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createCrawl, listCrawls, updateCrawl } from "@/lib/crawl-storage";
-import { spawn } from "child_process";
-import { access, writeFile, rm } from "fs/promises";
-import { createWriteStream } from "fs";
-import os from "os";
-import path from "path";
 import { validateUrls, SSRF_ERROR_MESSAGES, formatValidationError } from "@/lib/ssrf-policy";
 import { getRegistrableDomainFromUrl } from "@/lib/domain-utils";
+import { spawnCrawlerProcess } from "@/lib/crawler/process-manager";
+import { parseCrawlerResult, transformPages, calculateAggregateStats } from "@/lib/crawler/result-parser";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -241,123 +238,19 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
 
     console.log(`[API] Starting crawl ${crawlId} for ${urls.length} URL(s)`);
 
-    const crawlerServiceDir = path.join(process.cwd(), "mini-services/crawler-service");
-    const crawlBuildScript = path.join(crawlerServiceDir, "dist/crawl.js");
-    const crawlTsScript = path.join(crawlerServiceDir, "crawl.ts");
-    const tmpDir = os.tmpdir();
-    const stdoutLogFile = path.join(tmpDir, `crawl-${crawlId}-stdout.log`);
-    const stderrLogFile = path.join(tmpDir, `crawl-${crawlId}-stderr.log`);
-
-    let command = process.execPath;
-    let args = [crawlBuildScript];
-    const isProduction = process.env.NODE_ENV === "production";
-    const allowTsFallback = process.env.ALLOW_TS_CRAWLER_FALLBACK === "true";
-
+    // Stage: spawn & poll - launching the crawler subprocess and waiting
+    let spawnResult;
     try {
-      await access(crawlBuildScript);
-    } catch {
-      if (isProduction || !allowTsFallback) {
-        const message =
-          "Infrastructure error: missing required crawler build artifact at mini-services/crawler-service/dist/crawl.js. Run `npm --prefix mini-services/crawler-service run build` before starting Next.";
-        logError("spawn", message);
-        await updateCrawlError("spawn", message, "failed");
-        return;
-      }
-
-      command = path.join(process.cwd(), "node_modules", ".bin", "tsx");
-      args = [crawlTsScript];
-      warnings.push(
-        "Using development TypeScript fallback for crawler execution (ALLOW_TS_CRAWLER_FALLBACK=true).",
-      );
-    }
-
-    // Stage: spawn - launching the crawler subprocess
-    const child = spawn(command, args, {
-      cwd: crawlerServiceDir,
-      detached: true,
-      env: {
-        ...process.env,
-        CRAWLER_INPUT: payload,
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    const stdoutLogStream = createWriteStream(stdoutLogFile, { flags: "a" });
-    const stderrLogStream = createWriteStream(stderrLogFile, { flags: "a" });
-
-    let stdoutBuffer = "";
-    let stderrBuffer = "";
-    let stderrLineBuffer = "";
-
-    child.stdout?.on("data", (chunk) => {
-      const text = chunk.toString();
-      stdoutBuffer += text;
-      stdoutLogStream.write(chunk);
-    });
-
-    child.stderr?.on("data", (chunk) => {
-      const text = chunk.toString();
-      stderrBuffer += text;
-      stderrLogStream.write(chunk);
-
-      // Handle progress updates by buffering lines
-      stderrLineBuffer += text;
-      let lineEndIndex;
-      while ((lineEndIndex = stderrLineBuffer.indexOf("\n")) !== -1) {
-        const line = stderrLineBuffer.substring(0, lineEndIndex).trim();
-        stderrLineBuffer = stderrLineBuffer.substring(lineEndIndex + 1);
-
-        if (line.startsWith("PROGRESS_UPDATE:")) {
-          try {
-            const progressData = JSON.parse(line.substring("PROGRESS_UPDATE:".length));
-            const progressFile = path.join(process.cwd(), "output", `${crawlId}.progress.json`);
-            writeFile(progressFile, JSON.stringify({
-              ...progressData,
-              updatedAt: new Date().toISOString()
-            })).catch(err => console.error("[API] Failed to write progress file:", err));
-          } catch (e) {
-            // Ignore parse errors for progress
-          }
-        }
-      }
-
-      console.error(`[API] Crawl ${crawlId} stderr:`, text.trim());
-    });
-
-    const timeoutMs = Math.max((config.timeout ?? 30000) * urls.length + 60000, 120000);
-
-    // Stage: poll - waiting for subprocess to complete
-    let exitCode: number;
-    try {
-      exitCode = await new Promise<number>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          child.kill("SIGTERM");
-          reject(new Error("Crawl subprocess timed out"));
-        }, timeoutMs);
-
-        child.on("error", (err) => {
-          clearTimeout(timeout);
-          reject(err);
-        });
-
-        child.on("close", (code) => {
-          clearTimeout(timeout);
-          resolve(code ?? 1);
-        });
-      });
-    } catch (pollError) {
-      const message = pollError instanceof Error ? pollError.message : "Unknown polling error";
-      logError("poll", message, pollError);
-      await updateCrawlError("poll", message, "failed");
+      spawnResult = await spawnCrawlerProcess(crawlId, payload, config, urls);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error spawning crawler";
+      logError("spawn", message, err);
+      await updateCrawlError("spawn", message, "failed");
       return;
     }
 
-    stdoutLogStream.end();
-    stderrLogStream.end();
-
-    // Cleanup progress file
-    const progressFile = path.join(process.cwd(), "output", `${crawlId}.progress.json`);
-    rm(progressFile).catch(() => {});
+    const { exitCode, stdoutBuffer, stderrBuffer, warnings: processWarnings } = spawnResult;
+    warnings.push(...processWarnings);
 
     if (exitCode !== 0) {
       const message = `Crawler exited with code ${exitCode}. ${stderrBuffer.substring(0, 500)}`;
@@ -367,17 +260,9 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
     }
 
     // Stage: parse - parsing JSON output from crawler
-    let crawlResult: {
-      status: string;
-      pages: Array<Record<string, unknown>>;
-      errors: string[];
-      warnings: string[];
-      domainIntel?: Record<string, unknown> | null;
-      stats: { total: number; success: number; failed: number };
-    };
-
+    let crawlResult;
     try {
-      crawlResult = JSON.parse(stdoutBuffer);
+      crawlResult = parseCrawlerResult(stdoutBuffer);
     } catch (parseError) {
       const message = "Crawler process did not produce valid JSON output";
       logError("parse", message, parseError);
@@ -386,7 +271,6 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
     }
 
     // Stage: persist - storing pages in JSON output
-
     const allErrors = [...errors, ...(crawlResult.errors || [])];
     const allWarnings = [...warnings, ...(crawlResult.warnings || [])];
 
@@ -396,61 +280,8 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
       terminalStatus = "partial";
     }
 
-    // Transform snake_case from crawler to camelCase for frontend and remove redundant fields
-    const transformedPages = crawlResult.pages.map((page: any) => {
-      const {
-        final_url,
-        status_code,
-        meta_description,
-        robots_meta,
-        meta_generator,
-        visible_text,
-        word_count,
-        char_count,
-        structured_data,
-        body_classes,
-        html_classes,
-        tech_evidence,
-        load_time_ms,
-        dom_content_loaded_ms,
-        full_content_ready_ms,
-        ...rest
-      } = page;
-
-      return {
-        ...rest,
-        finalUrl: final_url,
-        statusCode: status_code,
-        metaDescription: meta_description,
-        robotsMeta: robots_meta,
-        metaGenerator: meta_generator,
-        visibleText: visible_text,
-        wordCount: word_count,
-        charCount: char_count,
-        structuredData: structured_data,
-        bodyClasses: body_classes,
-        htmlClasses: html_classes,
-        techEvidence: tech_evidence,
-        loadTimeMs: load_time_ms,
-        domContentLoadedMs: dom_content_loaded_ms,
-        fullContentReadyMs: full_content_ready_ms,
-      };
-    });
-
-    // Calculate aggregate stats
-    const loadTimes = transformedPages
-      .map((p: any) => p.loadTimeMs)
-      .filter((t: any) => typeof t === 'number') as number[];
-
-    let avgLoadTimeMs, minLoadTimeMs, maxLoadTimeMs, p95LoadTimeMs;
-
-    if (loadTimes.length > 0) {
-      loadTimes.sort((a, b) => a - b);
-      avgLoadTimeMs = Math.round(loadTimes.reduce((a, b) => a + b, 0) / loadTimes.length);
-      minLoadTimeMs = loadTimes[0];
-      maxLoadTimeMs = loadTimes[loadTimes.length - 1];
-      p95LoadTimeMs = loadTimes[Math.floor(loadTimes.length * 0.95)];
-    }
+    const transformedPages = transformPages(crawlResult.pages);
+    const { avgLoadTimeMs, minLoadTimeMs, maxLoadTimeMs, p95LoadTimeMs } = calculateAggregateStats(transformedPages);
 
     try {
       await updateCrawl(crawlId, {
