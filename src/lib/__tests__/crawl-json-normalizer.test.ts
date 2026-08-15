@@ -114,7 +114,7 @@ const mockCrawl: CrawlRecord = {
   p95LoadTimeMs: 1500,
 };
 
-function runTest() {
+export function runTest() {
   console.log("Starting normalization test...");
 
   const normalized = normalizeCrawl(mockCrawl);
@@ -185,7 +185,7 @@ function runTest() {
   console.log("Unique Tech:", Object.keys(normalized.entities.technologies).length);
   console.log("Unique Classes:", Object.keys(normalized.entities.classes).length);
 
-  if (
+  const allChecksPassed =
     sharedH1 === page2H1 &&
     sharedLink === page2Link &&
     sharedScript === page2Script &&
@@ -196,8 +196,9 @@ function runTest() {
     sharedResource === page2Resource &&
     sharedNetwork === page2Network &&
     sharedSD === page2SD &&
-    normalized.pages[0].techIds.length === 2
-  ) {
+    normalized.pages[0].techIds.length === 2;
+
+  if (allChecksPassed) {
     console.log("\nSUCCESS: All integrity checks passed.");
   } else {
     console.log("\nFAILURE: Some integrity checks failed.");
@@ -205,4 +206,7 @@ function runTest() {
   }
 }
 
-runTest();
+// Run the test directly if called via npx tsx
+if (import.meta.url === `file://${process.argv[1]}`) {
+  runTest();
+}
