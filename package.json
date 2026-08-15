@@ -8,7 +8,8 @@
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_ENV=production node .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
-    "prestart": "npm --prefix mini-services/crawler-service run build"
+    "prestart": "npm --prefix mini-services/crawler-service run build",
+    "test": "vitest run --exclude src/lib/__tests__/crawl-json-normalizer.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.11",
@@ -45,6 +46,7 @@
     "eslint": "^9",
     "eslint-config-next": "^16.1.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }
