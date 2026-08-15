@@ -5,7 +5,7 @@ import crypto from "crypto";
 /**
  * Stable stringify to ensure consistent hashing of objects regardless of key order.
  */
-function stableStringify(obj: any): string {
+function stableStringify(obj: unknown): string {
   if (obj === null || typeof obj !== "object") {
     return JSON.stringify(obj);
   }
@@ -17,7 +17,7 @@ function stableStringify(obj: any): string {
     "{" +
     keys
       .map((key) => {
-        return JSON.stringify(key) + ":" + stableStringify(obj[key]);
+        return JSON.stringify(key) + ":" + stableStringify((obj as Record<string, unknown>)[key]);
       })
       .join(",") +
     "}"
