@@ -215,9 +215,7 @@ export async function scanPorts(
   const grabModule: any = await import("grab.js");
   const grabber = grabModule.default ?? grabModule;
 
-  const results: PortIntel[] = [];
-
-  for (const port of ports) {
+  const scanPromises = ports.map(async (port): Promise<PortIntel> => {
     try {
       const status = await withTimeout(
         new Promise<"open" | "closed" | "filtered" | "unknown">((resolve) => {
@@ -247,12 +245,13 @@ export async function scanPorts(
         }
       }
 
-      results.push({ port, status, banner, service });
+      return { port, status, banner, service };
     } catch {
-      results.push({ port, status: "unknown" });
+      return { port, status: "unknown" };
     }
-  }
+  });
 
+  const results = await Promise.all(scanPromises);
   return results;
 }
 

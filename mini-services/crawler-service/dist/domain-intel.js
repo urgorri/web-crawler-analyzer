@@ -157,8 +157,7 @@ export async function scanPorts(targetIp, ports, timeoutMs = 800) {
     const portscanner = portscannerModule.default ?? portscannerModule;
     const grabModule = await import("grab.js");
     const grabber = grabModule.default ?? grabModule;
-    const results = [];
-    for (const port of ports) {
+    const scanPromises = ports.map(async (port) => {
         try {
             const status = await withTimeout(new Promise((resolve) => {
                 portscanner.checkPortStatus(port, { host: targetIp, timeout: timeoutMs }, (_err, portStatus) => {
@@ -179,12 +178,13 @@ export async function scanPorts(targetIp, ports, timeoutMs = 800) {
                     service = null;
                 }
             }
-            results.push({ port, status, banner, service });
+            return { port, status, banner, service };
         }
         catch {
-            results.push({ port, status: "unknown" });
+            return { port, status: "unknown" };
         }
-    }
+    });
+    const results = await Promise.all(scanPromises);
     return results;
 }
 export function flattenPageDomains(values) {
