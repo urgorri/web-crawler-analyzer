@@ -302,7 +302,6 @@ function CrawlRow({
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
-                variant="destructive"
                 onClick={onDelete}
                 className="bg-destructive text-white hover:bg-destructive/90"
               >
