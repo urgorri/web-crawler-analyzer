@@ -20,7 +20,7 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const format = searchParams.get("format");
 
-    let data: any = crawl;
+    let data: unknown = crawl;
     let filename = `crawl-${crawl.id}.json`;
 
     if (format !== "legacy") {
