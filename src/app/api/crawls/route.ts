@@ -191,6 +191,20 @@ export async function POST(request: NextRequest) {
 
 // ─── Background crawl ─────────────────────────────────────────────────────────
 
+/**
+ * Helper to log errors with structured context
+ */
+function logError(crawlId: string, stage: ErrorStage, message: string, error?: unknown) {
+  console.error(JSON.stringify({
+    event: "crawl_error",
+    crawlId,
+    stage,
+    message,
+    error: error instanceof Error ? error.message : String(error),
+    timestamp: new Date().toISOString(),
+  }));
+}
+
 async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, seedDomain: string) {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -209,20 +223,6 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
     } catch (writeErr) {
       console.error(`[API] Failed to update crawl error state (stage=${stage}):`, writeErr);
     }
-  }
-
-  /**
-   * Helper to log errors with structured context
-   */
-  function logError(stage: ErrorStage, message: string, error?: unknown) {
-    console.error(JSON.stringify({
-      event: "crawl_error",
-      crawlId,
-      stage,
-      message,
-      error: error instanceof Error ? error.message : String(error),
-      timestamp: new Date().toISOString(),
-    }));
   }
 
   try {
@@ -259,7 +259,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
       if (isProduction || !allowTsFallback) {
         const message =
           "Infrastructure error: missing required crawler build artifact at mini-services/crawler-service/dist/crawl.js. Run `npm --prefix mini-services/crawler-service run build` before starting Next.";
-        logError("spawn", message);
+        logError(crawlId, "spawn", message);
         await updateCrawlError("spawn", message, "failed");
         return;
       }
@@ -347,7 +347,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
       });
     } catch (pollError) {
       const message = pollError instanceof Error ? pollError.message : "Unknown polling error";
-      logError("poll", message, pollError);
+      logError(crawlId, "poll", message, pollError);
       await updateCrawlError("poll", message, "failed");
       return;
     }
@@ -361,7 +361,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
 
     if (exitCode !== 0) {
       const message = `Crawler exited with code ${exitCode}. ${stderrBuffer.substring(0, 500)}`;
-      logError("poll", message);
+      logError(crawlId, "poll", message);
       await updateCrawlError("poll", message, "failed");
       return;
     }
@@ -380,7 +380,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
       crawlResult = JSON.parse(stdoutBuffer);
     } catch (parseError) {
       const message = "Crawler process did not produce valid JSON output";
-      logError("parse", message, parseError);
+      logError(crawlId, "parse", message, parseError);
       await updateCrawlError("parse", message, "failed");
       return;
     }
@@ -468,7 +468,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
         p95LoadTimeMs,
       });
     } catch (writeErr) {
-      logError("persist", "Failed to update crawl final status", writeErr);
+      logError(crawlId, "persist", "Failed to update crawl final status", writeErr);
       // Best effort: already have partial data, mark as partial
       await updateCrawlError("persist", "Failed to finalize crawl record", "partial");
     }
@@ -478,7 +478,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    logError("spawn", message, error);
+    logError(crawlId, "spawn", message, error);
     
     // Wrap updateCrawl in try/catch to prevent unhandled rejections
     try {
