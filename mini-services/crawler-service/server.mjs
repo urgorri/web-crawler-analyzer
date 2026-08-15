@@ -5,7 +5,7 @@ const PORT = 3003;
 
 const server = createServer(async (req, res) => {
   const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "http://localhost:3000",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };
