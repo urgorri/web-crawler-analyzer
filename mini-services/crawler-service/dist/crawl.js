@@ -61,6 +61,10 @@ const LIB_PATTERNS = [
     "pinia", "zustand", "firebase", "supabase", "prisma", "wordpress", "drupal",
     "shopify", "squarespace", "wix",
 ];
+const PRECOMPILED_LIB_PATTERNS = LIB_PATTERNS.map((lib) => ({
+    lib,
+    regex: new RegExp(lib, "i"),
+}));
 function extractTechEvidence(page) {
     const evidence = [];
     const seen = new Set();
@@ -76,8 +80,8 @@ function extractTechEvidence(page) {
         add(`generator:${page.meta_generator}`);
     for (const url of [...page.scripts, ...page.stylesheets]) {
         const lower = url.toLowerCase();
-        for (const lib of LIB_PATTERNS)
-            if (new RegExp(lib, "i").test(lower))
+        for (const { lib, regex } of PRECOMPILED_LIB_PATTERNS)
+            if (regex.test(lower))
                 add(`lib-url:${lib}`);
     }
     const domains = new Set();
