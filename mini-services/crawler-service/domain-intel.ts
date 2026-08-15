@@ -169,8 +169,7 @@ export async function lookupRdapIp(ipAddress: string | null, timeoutMs = 12_000)
 
 export async function runTraceroute(target: string, timeoutMs = 30_000): Promise<TraceHop[]> {
   try {
-    const TracerClass: any = Traceroute as any;
-    const tracer = new TracerClass();
+    const tracer = new Traceroute();
     const hops: TraceHop[] = [];
 
     return await withTimeout(
