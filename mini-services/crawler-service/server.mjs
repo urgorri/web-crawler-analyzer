@@ -56,9 +56,12 @@ const server = createServer(async (req, res) => {
   console.log(`[Server] Spawning crawler for request`);
   const crawler = spawn("bun", ["run", "index.ts"], {
     cwd: import.meta.dirname,
-    env: { ...process.env, CRAWLER_INPUT: body },
+    env: { ...process.env },
     stdio: ["pipe", "pipe", "pipe"],
   });
+
+  crawler.stdin.write(body);
+  crawler.stdin.end();
 
   let stdout = "";
   let stderr = "";

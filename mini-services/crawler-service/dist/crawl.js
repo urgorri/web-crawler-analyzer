@@ -256,9 +256,17 @@ async function crawlPage(browser, url, config) {
 }
 // ─── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
-    const input = process.env.CRAWLER_INPUT;
+    let input = process.env.CRAWLER_INPUT;
     if (!input) {
-        process.stderr.write("Error: CRAWLER_INPUT env not set\n");
+        // Read from stdin if environment variable is missing
+        const chunks = [];
+        for await (const chunk of process.stdin) {
+            chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+        }
+        input = Buffer.concat(chunks).toString("utf-8");
+    }
+    if (!input || input.trim() === "") {
+        process.stderr.write("Error: Input payload not provided via stdin or env\n");
         process.exit(1);
     }
     let body;
@@ -266,7 +274,7 @@ async function main() {
         body = JSON.parse(input);
     }
     catch {
-        process.stderr.write("Error: Invalid JSON in CRAWLER_INPUT\n");
+        process.stderr.write("Error: Invalid JSON in input payload\n");
         process.exit(1);
     }
     if (!body.urls || !Array.isArray(body.urls) || body.urls.length === 0) {
