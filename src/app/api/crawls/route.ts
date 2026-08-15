@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
 
     const crawl = await createCrawl({
       urls: urlsToCrawl,
-      config,
+      config: config as Record<string, unknown>,
       name,
       warnings,
       domainIntel: {
@@ -227,6 +227,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
 
   try {
     const payload = JSON.stringify({
+      crawlId,
       urls,
       scopeDomain: seedDomain,
       config: {
