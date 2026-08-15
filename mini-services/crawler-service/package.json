@@ -18,8 +18,8 @@
     "whoiser": "^2.0.0-beta.10"
   },
   "devDependencies": {
-    "@types/node": "^24.13.3",
+    "@types/node": "^24.9.1",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.3"
+    "typescript": "^5"
   }
 }
