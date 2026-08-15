@@ -56,7 +56,7 @@ export function normalizeCrawl(record: CrawlRecord): NormalizedCrawl {
     return hash;
   }
 
-  const normalizedPages: NormalizedPageData[] = record.pages.map((p: any) => {
+  const normalizedPages: NormalizedPageData[] = record.pages.map((p: unknown) => {
     // Explicitly cast to PageData to know what we are reading
     const page = p as PageData;
 
