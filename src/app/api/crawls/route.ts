@@ -275,12 +275,14 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
     const child = spawn(command, args, {
       cwd: crawlerServiceDir,
       detached: true,
-      env: {
-        ...process.env,
-        CRAWLER_INPUT: payload,
-      },
-      stdio: ["ignore", "pipe", "pipe"],
+      env: process.env,
+      stdio: ["pipe", "pipe", "pipe"],
     });
+
+    if (child.stdin) {
+      child.stdin.write(payload);
+      child.stdin.end();
+    }
 
     const stdoutLogStream = createWriteStream(stdoutLogFile, { flags: "a" });
     const stderrLogStream = createWriteStream(stderrLogFile, { flags: "a" });
