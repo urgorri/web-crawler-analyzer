@@ -5,7 +5,7 @@ const PORT = 3003;
 
 const server = createServer(async (req, res) => {
   const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "http://localhost:3000",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };
@@ -56,9 +56,14 @@ const server = createServer(async (req, res) => {
   console.log(`[Server] Spawning crawler for request`);
   const crawler = spawn("bun", ["run", "index.ts"], {
     cwd: import.meta.dirname,
-    env: { ...process.env, CRAWLER_INPUT: body },
+    env: process.env,
     stdio: ["pipe", "pipe", "pipe"],
   });
+
+  if (crawler.stdin) {
+    crawler.stdin.write(body);
+    crawler.stdin.end();
+  }
 
   let stdout = "";
   let stderr = "";
