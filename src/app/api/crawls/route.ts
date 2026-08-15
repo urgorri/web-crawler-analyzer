@@ -21,6 +21,26 @@ interface CrawlConfig {
   headless?: boolean;
   waitForNetwork?: number;
   userAgent?: string;
+  [key: string]: unknown;
+}
+
+interface RawCrawlerPage {
+  final_url?: string;
+  status_code?: number;
+  meta_description?: string;
+  robots_meta?: string;
+  meta_generator?: string;
+  visible_text?: string;
+  word_count?: number;
+  char_count?: number;
+  structured_data?: unknown;
+  body_classes?: string[];
+  html_classes?: string[];
+  tech_evidence?: string[];
+  load_time_ms?: number;
+  dom_content_loaded_ms?: number;
+  full_content_ready_ms?: number;
+  [key: string]: any;
 }
 
 // ─── Error Stages ──────────────────────────────────────────────────────────────
@@ -369,7 +389,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
     // Stage: parse - parsing JSON output from crawler
     let crawlResult: {
       status: string;
-      pages: Array<Record<string, unknown>>;
+      pages: Array<RawCrawlerPage>;
       errors: string[];
       warnings: string[];
       domainIntel?: Record<string, unknown> | null;
@@ -397,7 +417,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
     }
 
     // Transform snake_case from crawler to camelCase for frontend and remove redundant fields
-    const transformedPages = crawlResult.pages.map((page: any) => {
+    const transformedPages = crawlResult.pages.map((page: RawCrawlerPage) => {
       const {
         final_url,
         status_code,
@@ -439,8 +459,8 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
 
     // Calculate aggregate stats
     const loadTimes = transformedPages
-      .map((p: any) => p.loadTimeMs)
-      .filter((t: any) => typeof t === 'number') as number[];
+      .map((p) => p.loadTimeMs)
+      .filter((t): t is number => typeof t === 'number');
 
     let avgLoadTimeMs, minLoadTimeMs, maxLoadTimeMs, p95LoadTimeMs;
 
