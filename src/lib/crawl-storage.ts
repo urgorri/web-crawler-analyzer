@@ -115,20 +115,21 @@ export async function listCrawls() {
   await ensureOutputDir();
   const entries = await readdir(outputDir);
   const files = entries.filter((name) => name.endsWith(".json") && !name.endsWith(".progress.json"));
-  const crawls: CrawlRecord[] = [];
 
-  for (const fileName of files) {
+  const crawlsPromises = files.map(async (fileName) => {
     const fullPath = path.join(outputDir, fileName);
     const [contents, fileStat] = await Promise.all([
       readFile(fullPath, "utf8"),
       stat(fullPath),
     ]);
     const parsed = JSON.parse(contents) as CrawlRecord;
-    crawls.push({
+    return {
       ...parsed,
       startedAt: parsed.startedAt || fileStat.birthtime.toISOString(),
-    });
-  }
+    };
+  });
+
+  const crawls = await Promise.all(crawlsPromises);
 
   return crawls.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 }
