@@ -5,6 +5,10 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function isValidId(id: string): boolean {
+  return /^[a-zA-Z0-9-]+$/.test(id);
+}
+
 export function isValidUrl(s: string): boolean {
   try {
     const u = new URL(s.trim());
