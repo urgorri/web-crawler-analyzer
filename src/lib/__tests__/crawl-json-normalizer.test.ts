@@ -1,6 +1,4 @@
-// Simple test script for the normalizer
-// Run with: npx tsx src/lib/__tests__/crawl-json-normalizer.test.ts
-
+import { test, expect } from "vitest";
 import { normalizeCrawl } from "../crawl-json-normalizer";
 import { CrawlRecord } from "../crawl-storage";
 
@@ -114,95 +112,63 @@ const mockCrawl: CrawlRecord = {
   p95LoadTimeMs: 1500,
 };
 
-function runTest() {
-  console.log("Starting normalization test...");
-
+test("normalizeCrawl", () => {
   const normalized = normalizeCrawl(mockCrawl);
 
-  console.log("Schema Version:", normalized.schemaVersion);
-  console.log("Raw size estimate:", normalized.dedupStats.rawBytesEstimate);
-  console.log("Optimized size estimate:", normalized.dedupStats.optimizedBytesEstimate);
-  console.log("Reduction:", normalized.dedupStats.reductionPercentage, "%");
-
-  // Verify entities
+  // Verify entities deduplication
   const sharedH1 = normalized.pages[0].headingIds.h1[0];
   const page2H1 = normalized.pages[1].headingIds.h1[0];
   const page3H1 = normalized.pages[2].headingIds.h1[0];
 
-  console.log("\n--- Verification ---");
-  console.log("Page 1 & 2 share H1 'Welcome'?", sharedH1 === page2H1 ? "✅" : "❌");
-  console.log("Page 1 & 3 have different H1?", sharedH1 !== page3H1 ? "✅" : "❌");
+  expect(sharedH1).toBe(page2H1);
+  expect(sharedH1).not.toBe(page3H1);
 
   const sharedLink = normalized.pages[0].linkIds.internal[0];
   const page2Link = normalized.pages[1].linkIds.internal[0];
-  console.log("Page 1 & 2 share internal link?", sharedLink === page2Link ? "✅" : "❌");
+  expect(sharedLink).toBe(page2Link);
 
   const sharedScript = normalized.pages[0].scriptIds[0];
   const page2Script = normalized.pages[1].scriptIds[0];
-  console.log("Page 1 & 2 share script?", sharedScript === page2Script ? "✅" : "❌");
+  expect(sharedScript).toBe(page2Script);
 
   const sharedTech = normalized.pages[0].techIds[0]; // React
   const page2Tech = normalized.pages[1].techIds[0]; // React
-  console.log("Page 1 & 2 share tech 'React'?", sharedTech === page2Tech ? "✅" : "❌");
+  expect(sharedTech).toBe(page2Tech);
 
   const sharedClass = normalized.pages[0].bodyClassIds[0]; // bg-white
   const page2Class = normalized.pages[1].bodyClassIds[0]; // bg-white
-  console.log("Page 1 & 2 share class 'bg-white'?", sharedClass === page2Class ? "✅" : "❌");
+  expect(sharedClass).toBe(page2Class);
 
   const sharedImage = normalized.pages[0].imageIds[0];
   const page2Image = normalized.pages[1].imageIds[0];
-  console.log("Page 1 & 2 share image?", sharedImage === page2Image ? "✅" : "❌");
+  expect(sharedImage).toBe(page2Image);
 
   const sharedForm = normalized.pages[0].formIds[0];
   const page2Form = normalized.pages[1].formIds[0];
-  console.log("Page 1 & 2 share form (stable order check)?", sharedForm === page2Form ? "✅" : "❌");
+  expect(sharedForm).toBe(page2Form);
 
   const sharedResource = normalized.pages[0].resourceIds[0];
   const page2Resource = normalized.pages[1].resourceIds[0];
-  console.log("Page 1 & 2 share resource?", sharedResource === page2Resource ? "✅" : "❌");
+  expect(sharedResource).toBe(page2Resource);
 
   const sharedNetwork = normalized.pages[0].networkIds[0];
   const page2Network = normalized.pages[1].networkIds[0];
-  console.log("Page 1 & 2 share network?", sharedNetwork === page2Network ? "✅" : "❌");
+  expect(sharedNetwork).toBe(page2Network);
 
   const sharedSD = normalized.pages[0].structuredDataIds[0];
   const page2SD = normalized.pages[1].structuredDataIds[0];
-  console.log("Page 1 & 2 share structured data (stable order check)?", sharedSD === page2SD ? "✅" : "❌");
+  expect(sharedSD).toBe(page2SD);
 
   // Verify output case
-  console.log("\n--- Output Case Check ---");
-  console.log("Page 1 has loadTimeMs?", normalized.pages[0].loadTimeMs === 1200 ? "✅" : "❌");
-  console.log("Crawl has avgLoadTimeMs?", normalized.avgLoadTimeMs === 1233 ? "✅" : "❌");
-
-  console.log("Page 1 title in output:", normalized.pages[0].title ? "✅" : "❌");
-  console.log("Page 1 techIds count:", normalized.pages[0].techIds.length, normalized.pages[0].techIds.length === 2 ? "✅" : "❌");
+  expect(normalized.pages[0].loadTimeMs).toBe(1200);
+  expect(normalized.avgLoadTimeMs).toBe(1233);
+  expect(normalized.pages[0].title).toBeTruthy();
+  expect(normalized.pages[0].techIds.length).toBe(2);
 
   // Verify counts
-  console.log("\n--- Entity Counts ---");
-  console.log("Unique Headings:", Object.keys(normalized.entities.headings).length);
-  console.log("Unique Links:", Object.keys(normalized.entities.links).length);
-  console.log("Unique Scripts:", Object.keys(normalized.entities.scripts).length);
-  console.log("Unique Tech:", Object.keys(normalized.entities.technologies).length);
-  console.log("Unique Classes:", Object.keys(normalized.entities.classes).length);
-
-  if (
-    sharedH1 === page2H1 &&
-    sharedLink === page2Link &&
-    sharedScript === page2Script &&
-    sharedTech === page2Tech &&
-    sharedClass === page2Class &&
-    sharedImage === page2Image &&
-    sharedForm === page2Form &&
-    sharedResource === page2Resource &&
-    sharedNetwork === page2Network &&
-    sharedSD === page2SD &&
-    normalized.pages[0].techIds.length === 2
-  ) {
-    console.log("\nSUCCESS: All integrity checks passed.");
-  } else {
-    console.log("\nFAILURE: Some integrity checks failed.");
-    process.exit(1);
-  }
-}
-
-runTest();
+  expect(Object.keys(normalized.entities.headings).length).toBe(4);
+  expect(Object.keys(normalized.entities.links).length).toBe(3);
+  expect(Object.keys(normalized.entities.scripts).length).toBe(3);
+  expect(Object.keys(normalized.entities.technologies).length).toBe(3);
+  expect(Object.keys(normalized.entities.classes).length).toBe(3);
+});
