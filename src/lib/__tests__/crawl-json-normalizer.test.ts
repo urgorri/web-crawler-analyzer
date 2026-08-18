@@ -115,14 +115,7 @@ const mockCrawl: CrawlRecord = {
 };
 
 function runTest() {
-  console.log("Starting normalization test...");
-
   const normalized = normalizeCrawl(mockCrawl);
-
-  console.log("Schema Version:", normalized.schemaVersion);
-  console.log("Raw size estimate:", normalized.dedupStats.rawBytesEstimate);
-  console.log("Optimized size estimate:", normalized.dedupStats.optimizedBytesEstimate);
-  console.log("Reduction:", normalized.dedupStats.reductionPercentage, "%");
 
   // Verify entities
   const sharedH1 = normalized.pages[0].headingIds.h1[0];
