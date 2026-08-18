@@ -1,6 +1,14 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { formatValidationError } from '../ssrf-policy';
+import { formatValidationError, validateUrl } from '../ssrf-policy';
+
+describe('validateUrl', () => {
+  test('Should return invalid for non-URL strings', () => {
+    const result = validateUrl('not-a-url');
+    assert.strictEqual(result.isValid, false);
+    assert.strictEqual(result.errorCode, 'INVALID_URL');
+  });
+});
 
 describe('formatValidationError', () => {
   test('Should return empty string for empty array', () => {
