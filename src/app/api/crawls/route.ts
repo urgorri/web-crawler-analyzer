@@ -497,9 +497,6 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
       await updateCrawlError("persist", "Failed to finalize crawl record", "partial");
     }
 
-    console.log(
-      `[API] Crawl ${crawlId} ${terminalStatus}: ${crawlResult.stats.success} pages, ${allErrors.length} errors`,
-    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     logError(crawlId, "spawn", message, error);
