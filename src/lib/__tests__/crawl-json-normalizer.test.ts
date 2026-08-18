@@ -120,26 +120,16 @@ function runTest() {
   const normalized = normalizeCrawl(mockCrawl);
 
   console.log("Schema Version:", normalized.schemaVersion);
-  console.log("Raw size estimate:", normalized.dedupStats.rawBytesEstimate);
-  console.log("Optimized size estimate:", normalized.dedupStats.optimizedBytesEstimate);
-  console.log("Reduction:", normalized.dedupStats.reductionPercentage, "%");
-
   // Verify entities
   const sharedH1 = normalized.pages[0].headingIds.h1[0];
   const page2H1 = normalized.pages[1].headingIds.h1[0];
   const page3H1 = normalized.pages[2].headingIds.h1[0];
 
-  console.log("\n--- Verification ---");
-  console.log("Page 1 & 2 share H1 'Welcome'?", sharedH1 === page2H1 ? "✅" : "❌");
-  console.log("Page 1 & 3 have different H1?", sharedH1 !== page3H1 ? "✅" : "❌");
-
   const sharedLink = normalized.pages[0].linkIds.internal[0];
   const page2Link = normalized.pages[1].linkIds.internal[0];
-  console.log("Page 1 & 2 share internal link?", sharedLink === page2Link ? "✅" : "❌");
 
   const sharedScript = normalized.pages[0].scriptIds[0];
   const page2Script = normalized.pages[1].scriptIds[0];
-  console.log("Page 1 & 2 share script?", sharedScript === page2Script ? "✅" : "❌");
 
   const sharedTech = normalized.pages[0].techIds[0]; // React
   const page2Tech = normalized.pages[1].techIds[0]; // React
