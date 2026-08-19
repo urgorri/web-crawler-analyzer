@@ -43,13 +43,20 @@ export function normalizeCrawl(record: CrawlRecord): NormalizedCrawl {
     structuredData: {},
   };
 
+  const hashMemo = new Map<string, string>();
+
   // Helper to get or create entity ID
   function getOrAdd<T>(
     dict: Record<string, T>,
     value: T,
     hashFn: (v: T) => string = (v) => stableStringify(v)
   ): string {
-    const hash = crypto.createHash("md5").update(hashFn(value)).digest("hex").slice(0, 12);
+    const stringified = hashFn(value);
+    let hash = hashMemo.get(stringified);
+    if (!hash) {
+      hash = crypto.createHash("md5").update(stringified).digest("hex").slice(0, 12);
+      hashMemo.set(stringified, hash);
+    }
     if (!dict[hash]) {
       dict[hash] = value;
     }
