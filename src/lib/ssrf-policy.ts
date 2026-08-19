@@ -39,6 +39,14 @@ export interface UrlValidationOptions {
   allowPrivateTargets?: boolean;
 }
 
+export interface SSRFValidationError {
+  url: string;
+  reason?: string;
+  message?: string;
+  code?: string;
+  errorCode?: string;
+}
+
 // ─── Security Policy ──────────────────────────────────────────────────────────
 
 /**
@@ -175,9 +183,9 @@ export function validateUrl(
 export function validateUrls(
   urls: string[],
   options: UrlValidationOptions = {}
-): { validUrls: string[]; rejections: Array<{ url: string; reason: string; errorCode?: string }> } {
+): { validUrls: string[]; rejections: SSRFValidationError[] } {
   const validUrls: string[] = [];
-  const rejections: Array<{ url: string; reason: string; errorCode?: string }> = [];
+  const rejections: SSRFValidationError[] = [];
   
   for (const url of urls) {
     const result = validateUrl(url, options);
@@ -230,23 +238,10 @@ export const SSRF_ERROR_MESSAGES = {
 } as const;
 
 /**
- * Generate a user-friendly error response for URL validation failures.
- * 
- * @param rejections - Array of rejected URLs with reasons
- * @returns Formatted error message suitable for API responses
+ * Formats SSRF validation errors into a human-readable string.
+ * Useful for logging and debugging.
  */
-export function formatValidationError(rejections: Array<{ url: string; reason: string }>): string {
-  if (rejections.length === 0) {
-    return '';
-  }
-  
-  if (rejections.length === 1) {
-    return `URL rejected: ${rejections[0].url} - ${rejections[0].reason}`;
-  }
-  
-  const summary = `${rejections.length} URL(s) were rejected:`;
-  const details = rejections.slice(0, 5).map((r) => `  • ${r.url}: ${r.reason}`).join('\n');
-  const truncated = rejections.length > 5 ? `\n  ... and ${rejections.length - 5} more` : '';
-  
-  return `${summary}\n${details}${truncated}`;
+export function formatValidationError(errors: SSRFValidationError[]): string {
+  if (errors.length === 0) return '';
+  return errors.map((e) => `${e.url}: ${e.message || e.reason || 'Unknown error'} (${e.code || e.errorCode || 'UNKNOWN'})`).join(", ");
 }

@@ -4,8 +4,12 @@ import { spawn } from "child_process";
 const PORT = 3003;
 
 const server = createServer(async (req, res) => {
+  const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:3000").split(",").map(o => o.trim());
+  const requestOrigin = req.headers.origin;
+  const allowOrigin = allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
+
   const corsHeaders = {
-    "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "http://localhost:3000",
+    "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };
