@@ -3,6 +3,7 @@ import path from "path";
 import crypto from "crypto";
 import type { DomainIntel } from "@/app/api/crawls/types";
 import { getRegistrableDomainFromUrl } from "@/lib/domain-utils";
+import { isValidId } from "@/lib/utils";
 
 export interface CrawlRecord {
   id: string;
@@ -34,7 +35,7 @@ async function ensureOutputDir() {
 }
 
 function crawlPath(id: string) {
-  return path.join(outputDir, `${id}.json`);
+  return path.join(outputDir, `${path.basename(id)}.json`);
 }
 
 export async function createCrawl(input: {
@@ -95,6 +96,7 @@ export async function createCrawl(input: {
 }
 
 export async function getCrawl(id: string) {
+  if (!isValidId(id)) return null;
   try {
     const file = await readFile(crawlPath(id), "utf8");
     return JSON.parse(file) as CrawlRecord;
@@ -104,6 +106,7 @@ export async function getCrawl(id: string) {
 }
 
 export async function updateCrawl(id: string, patch: Partial<CrawlRecord>) {
+  if (!isValidId(id)) return null;
   const current = await getCrawl(id);
   if (!current) return null;
   const next = { ...current, ...patch };
@@ -135,6 +138,7 @@ export async function listCrawls() {
 }
 
 export async function deleteCrawl(id: string) {
+  if (!isValidId(id)) return false;
   try {
     await rm(crawlPath(id));
     return true;

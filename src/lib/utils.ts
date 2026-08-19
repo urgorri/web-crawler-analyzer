@@ -13,3 +13,9 @@ export function isValidUrl(s: string): boolean {
     return false;
   }
 }
+
+export function isValidId(id: string): boolean {
+  if (!id || typeof id !== 'string') return false;
+  // allow only alphanumeric, dashes, and underscores
+  return /^[a-zA-Z0-9-_]+$/.test(id);
+}
