@@ -782,16 +782,23 @@ function PageDetail({ page }: { page: PageData }) {
 
 function TechTab({ crawl }: { crawl: CrawlDetail }) {
   const pages = crawl.pages ?? [];
-  const techMap = new Map<string, { pages: string[] }>();
 
-  for (const page of pages) {
-    for (const tech of page.techEvidence ?? []) {
-      if (!techMap.has(tech)) techMap.set(tech, { pages: [] });
-      techMap.get(tech)!.pages.push(page.url);
+  const entries = React.useMemo(() => {
+    const techMap = new Map<string, { pages: string[] }>();
+
+    for (const page of pages) {
+      for (const tech of page.techEvidence ?? []) {
+        let techData = techMap.get(tech);
+        if (!techData) {
+          techData = { pages: [] };
+          techMap.set(tech, techData);
+        }
+        techData.pages.push(page.url);
+      }
     }
-  }
 
-  const entries = Array.from(techMap.entries()).sort((a, b) => b[1].pages.length - a[1].pages.length);
+    return Array.from(techMap.entries()).sort((a, b) => b[1].pages.length - a[1].pages.length);
+  }, [crawl.pages]);
 
   if (entries.length === 0) {
     return (

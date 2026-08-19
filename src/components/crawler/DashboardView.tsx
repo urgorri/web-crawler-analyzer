@@ -120,8 +120,16 @@ export default function DashboardView() {
   });
 
   const totalCrawls = crawls?.length ?? 0;
-  const totalPages = crawls?.reduce((s, c) => s + c.pageCount, 0) ?? 0;
-  const totalErrors = crawls?.reduce((s, c) => s + c.errorCount, 0) ?? 0;
+
+  let totalPages = 0;
+  let totalErrors = 0;
+  if (crawls) {
+    for (const crawl of crawls) {
+      totalPages += crawl.pageCount;
+      totalErrors += crawl.errorCount;
+    }
+  }
+
   const totalAttempts = totalPages + totalErrors;
   const successRate =
     totalAttempts > 0
