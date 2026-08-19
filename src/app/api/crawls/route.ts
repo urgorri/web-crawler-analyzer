@@ -295,7 +295,12 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
     const child = spawn(command, args, {
       cwd: crawlerServiceDir,
       detached: true,
-      env: process.env,
+      env: {
+        PATH: process.env.PATH,
+        NODE_ENV: process.env.NODE_ENV,
+        PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH,
+        ALLOW_PRIVATE_TARGETS: process.env.ALLOW_PRIVATE_TARGETS,
+      },
       stdio: ["pipe", "pipe", "pipe"],
     });
 
