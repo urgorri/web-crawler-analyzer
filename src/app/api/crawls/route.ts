@@ -261,8 +261,6 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
       },
     });
 
-    console.log(`[API] Starting crawl ${crawlId} for ${urls.length} URL(s)`);
-
     const crawlerServiceDir = path.join(process.cwd(), "mini-services/crawler-service");
     const crawlBuildScript = path.join(crawlerServiceDir, "dist/crawl.js");
     const crawlTsScript = path.join(crawlerServiceDir, "crawl.ts");
@@ -497,9 +495,6 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
       await updateCrawlError("persist", "Failed to finalize crawl record", "partial");
     }
 
-    console.log(
-      `[API] Crawl ${crawlId} ${terminalStatus}: ${crawlResult.stats.success} pages, ${allErrors.length} errors`,
-    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     logError(crawlId, "spawn", message, error);
