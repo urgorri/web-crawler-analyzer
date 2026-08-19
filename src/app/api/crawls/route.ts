@@ -110,17 +110,17 @@ export async function POST(request: NextRequest) {
     // Apply SSRF protection policy - same validation as mini-services/crawler-service/crawl.ts
     const { validUrls, rejections } = validateUrls(urls);
 
+    // Log rejected URLs for debugging
+    if (rejections.length > 0) {
+      console.warn("[API] URLs rejected by SSRF policy:", rejections);
+    }
+
     if (validUrls.length === 0) {
       const errorMessage = formatValidationError(rejections);
       return NextResponse.json(
         { error: errorMessage || SSRF_ERROR_MESSAGES.NO_VALID_URLS },
         { status: 400 },
       );
-    }
-
-    // Log rejected URLs for debugging
-    if (rejections.length > 0) {
-      console.warn("[API] URLs rejected by SSRF policy:", rejections);
     }
 
     const seedDomain = getRegistrableDomainFromUrl(validUrls[0]);
