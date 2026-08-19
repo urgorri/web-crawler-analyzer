@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 // Simple test script for the normalizer
 // Run with: npx tsx src/lib/__tests__/crawl-json-normalizer.test.ts
 
@@ -115,94 +116,65 @@ const mockCrawl: CrawlRecord = {
 };
 
 function runTest() {
-  console.log("Starting normalization test...");
-
   const normalized = normalizeCrawl(mockCrawl);
-
-  console.log("Schema Version:", normalized.schemaVersion);
-  console.log("Raw size estimate:", normalized.dedupStats.rawBytesEstimate);
-  console.log("Optimized size estimate:", normalized.dedupStats.optimizedBytesEstimate);
-  console.log("Reduction:", normalized.dedupStats.reductionPercentage, "%");
 
   // Verify entities
   const sharedH1 = normalized.pages[0].headingIds.h1[0];
   const page2H1 = normalized.pages[1].headingIds.h1[0];
   const page3H1 = normalized.pages[2].headingIds.h1[0];
 
-  console.log("\n--- Verification ---");
-  console.log("Page 1 & 2 share H1 'Welcome'?", sharedH1 === page2H1 ? "✅" : "❌");
-  console.log("Page 1 & 3 have different H1?", sharedH1 !== page3H1 ? "✅" : "❌");
+  assert.equal(sharedH1, page2H1, "Page 1 & 2 should share H1 'Welcome'");
+  assert.notEqual(sharedH1, page3H1, "Page 1 & 3 should have different H1");
 
   const sharedLink = normalized.pages[0].linkIds.internal[0];
   const page2Link = normalized.pages[1].linkIds.internal[0];
-  console.log("Page 1 & 2 share internal link?", sharedLink === page2Link ? "✅" : "❌");
+  assert.equal(sharedLink, page2Link, "Page 1 & 2 should share internal link");
 
   const sharedScript = normalized.pages[0].scriptIds[0];
   const page2Script = normalized.pages[1].scriptIds[0];
-  console.log("Page 1 & 2 share script?", sharedScript === page2Script ? "✅" : "❌");
+  assert.equal(sharedScript, page2Script, "Page 1 & 2 should share script");
 
   const sharedTech = normalized.pages[0].techIds[0]; // React
   const page2Tech = normalized.pages[1].techIds[0]; // React
-  console.log("Page 1 & 2 share tech 'React'?", sharedTech === page2Tech ? "✅" : "❌");
+  assert.equal(sharedTech, page2Tech, "Page 1 & 2 should share tech 'React'");
 
   const sharedClass = normalized.pages[0].bodyClassIds[0]; // bg-white
   const page2Class = normalized.pages[1].bodyClassIds[0]; // bg-white
-  console.log("Page 1 & 2 share class 'bg-white'?", sharedClass === page2Class ? "✅" : "❌");
+  assert.equal(sharedClass, page2Class, "Page 1 & 2 should share class 'bg-white'");
 
   const sharedImage = normalized.pages[0].imageIds[0];
   const page2Image = normalized.pages[1].imageIds[0];
-  console.log("Page 1 & 2 share image?", sharedImage === page2Image ? "✅" : "❌");
+  assert.equal(sharedImage, page2Image, "Page 1 & 2 should share image");
 
   const sharedForm = normalized.pages[0].formIds[0];
   const page2Form = normalized.pages[1].formIds[0];
-  console.log("Page 1 & 2 share form (stable order check)?", sharedForm === page2Form ? "✅" : "❌");
+  assert.equal(sharedForm, page2Form, "Page 1 & 2 should share form (stable order check)");
 
   const sharedResource = normalized.pages[0].resourceIds[0];
   const page2Resource = normalized.pages[1].resourceIds[0];
-  console.log("Page 1 & 2 share resource?", sharedResource === page2Resource ? "✅" : "❌");
+  assert.equal(sharedResource, page2Resource, "Page 1 & 2 should share resource");
 
   const sharedNetwork = normalized.pages[0].networkIds[0];
   const page2Network = normalized.pages[1].networkIds[0];
-  console.log("Page 1 & 2 share network?", sharedNetwork === page2Network ? "✅" : "❌");
+  assert.equal(sharedNetwork, page2Network, "Page 1 & 2 should share network");
 
   const sharedSD = normalized.pages[0].structuredDataIds[0];
   const page2SD = normalized.pages[1].structuredDataIds[0];
-  console.log("Page 1 & 2 share structured data (stable order check)?", sharedSD === page2SD ? "✅" : "❌");
+  assert.equal(sharedSD, page2SD, "Page 1 & 2 should share structured data (stable order check)");
 
   // Verify output case
-  console.log("\n--- Output Case Check ---");
-  console.log("Page 1 has loadTimeMs?", normalized.pages[0].loadTimeMs === 1200 ? "✅" : "❌");
-  console.log("Crawl has avgLoadTimeMs?", normalized.avgLoadTimeMs === 1233 ? "✅" : "❌");
+  assert.equal(normalized.pages[0].loadTimeMs, 1200, "Page 1 has loadTimeMs");
+  assert.equal(normalized.avgLoadTimeMs, 1233, "Crawl has avgLoadTimeMs");
 
-  console.log("Page 1 title in output:", normalized.pages[0].title ? "✅" : "❌");
-  console.log("Page 1 techIds count:", normalized.pages[0].techIds.length, normalized.pages[0].techIds.length === 2 ? "✅" : "❌");
+  assert.ok(normalized.pages[0].title, "Page 1 title in output");
+  assert.equal(normalized.pages[0].techIds.length, 2, "Page 1 techIds count is 2");
 
   // Verify counts
-  console.log("\n--- Entity Counts ---");
-  console.log("Unique Headings:", Object.keys(normalized.entities.headings).length);
-  console.log("Unique Links:", Object.keys(normalized.entities.links).length);
-  console.log("Unique Scripts:", Object.keys(normalized.entities.scripts).length);
-  console.log("Unique Tech:", Object.keys(normalized.entities.technologies).length);
-  console.log("Unique Classes:", Object.keys(normalized.entities.classes).length);
-
-  if (
-    sharedH1 === page2H1 &&
-    sharedLink === page2Link &&
-    sharedScript === page2Script &&
-    sharedTech === page2Tech &&
-    sharedClass === page2Class &&
-    sharedImage === page2Image &&
-    sharedForm === page2Form &&
-    sharedResource === page2Resource &&
-    sharedNetwork === page2Network &&
-    sharedSD === page2SD &&
-    normalized.pages[0].techIds.length === 2
-  ) {
-    console.log("\nSUCCESS: All integrity checks passed.");
-  } else {
-    console.log("\nFAILURE: Some integrity checks failed.");
-    process.exit(1);
-  }
+  assert.equal(Object.keys(normalized.entities.headings).length, 4, "Unique Headings count");
+  assert.equal(Object.keys(normalized.entities.links).length, 3, "Unique Links count");
+  assert.equal(Object.keys(normalized.entities.scripts).length, 3, "Unique Scripts count");
+  assert.equal(Object.keys(normalized.entities.technologies).length, 3, "Unique Tech count");
+  assert.equal(Object.keys(normalized.entities.classes).length, 3, "Unique Classes count");
 }
 
 runTest();
