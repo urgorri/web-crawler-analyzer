@@ -1,6 +1,97 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { formatValidationError, validateUrl } from '../ssrf-policy';
+import { formatValidationError, validateUrl, validateUrls } from '../ssrf-policy';
+
+describe('validateUrls', () => {
+  test('Should return empty arrays for empty input', () => {
+    const result = validateUrls([]);
+    assert.deepStrictEqual(result.validUrls, []);
+    assert.deepStrictEqual(result.rejections, []);
+  });
+
+  test('Should validate and trim all valid public URLs', () => {
+    const urls = [
+      '  https://example.com  ',
+      'http://google.com/path?q=1',
+      'https://sub.domain.org'
+    ];
+    const result = validateUrls(urls);
+    assert.deepStrictEqual(result.validUrls, [
+      'https://example.com',
+      'http://google.com/path?q=1',
+      'https://sub.domain.org'
+    ]);
+    assert.deepStrictEqual(result.rejections, []);
+  });
+
+  test('Should reject invalid formats and unsupported protocols', () => {
+    const urls = [
+      'not-a-url',
+      'ftp://files.example.com',
+      'mailto:user@example.com'
+    ];
+    const result = validateUrls(urls);
+    assert.deepStrictEqual(result.validUrls, []);
+    assert.strictEqual(result.rejections.length, 3);
+    assert.strictEqual(result.rejections[0].url, 'not-a-url');
+    assert.strictEqual(result.rejections[0].errorCode, 'INVALID_URL');
+    assert.strictEqual(result.rejections[1].url, 'ftp://files.example.com');
+    assert.strictEqual(result.rejections[1].errorCode, 'UNSUPPORTED_PROTOCOL');
+    assert.strictEqual(result.rejections[2].url, 'mailto:user@example.com');
+    assert.strictEqual(result.rejections[2].errorCode, 'UNSUPPORTED_PROTOCOL');
+  });
+
+  test('Should reject private/internal URLs by default', () => {
+    const urls = [
+      'http://localhost/api',
+      'http://127.0.0.1:8080',
+      'http://192.168.1.1'
+    ];
+    const result = validateUrls(urls, { allowPrivateTargets: false });
+    assert.deepStrictEqual(result.validUrls, []);
+    assert.strictEqual(result.rejections.length, 3);
+    assert.strictEqual(result.rejections[0].errorCode, 'PRIVATE_NETWORK_BLOCKED');
+    assert.strictEqual(result.rejections[1].errorCode, 'PRIVATE_NETWORK_BLOCKED');
+    assert.strictEqual(result.rejections[2].errorCode, 'PRIVATE_NETWORK_BLOCKED');
+  });
+
+  test('Should allow private targets when option allowPrivateTargets is true', () => {
+    const urls = [
+      'http://localhost/api',
+      'http://127.0.0.1:8080',
+      'https://example.com'
+    ];
+    const result = validateUrls(urls, { allowPrivateTargets: true });
+    assert.deepStrictEqual(result.validUrls, [
+      'http://localhost/api',
+      'http://127.0.0.1:8080',
+      'https://example.com'
+    ]);
+    assert.deepStrictEqual(result.rejections, []);
+  });
+
+  test('Should handle a mixed batch of valid, invalid, and blocked URLs', () => {
+    const urls = [
+      ' https://valid.com ',
+      'invalid-format',
+      'http://10.0.0.1/admin',
+      'https://another-valid.org'
+    ];
+    const result = validateUrls(urls, { allowPrivateTargets: false });
+    assert.deepStrictEqual(result.validUrls, [
+      'https://valid.com',
+      'https://another-valid.org'
+    ]);
+    assert.strictEqual(result.rejections.length, 2);
+    assert.deepStrictEqual(result.rejections[0], {
+      url: 'invalid-format',
+      reason: 'Invalid URL format.',
+      errorCode: 'INVALID_URL'
+    });
+    assert.strictEqual(result.rejections[1].url, 'http://10.0.0.1/admin');
+    assert.strictEqual(result.rejections[1].errorCode, 'PRIVATE_NETWORK_BLOCKED');
+  });
+});
 
 describe('validateUrl', () => {
   test('Should return invalid for non-URL strings', () => {
