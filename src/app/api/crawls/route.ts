@@ -465,15 +465,20 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
     });
 
     // Calculate aggregate stats
-    const loadTimes = transformedPages
-      .map((p) => p.loadTimeMs)
-      .filter((t): t is number => typeof t === 'number');
+    let sumLoadTimes = 0;
+    const loadTimes = transformedPages.reduce((acc: number[], p) => {
+      if (typeof p.loadTimeMs === 'number') {
+        acc.push(p.loadTimeMs);
+        sumLoadTimes += p.loadTimeMs;
+      }
+      return acc;
+    }, []);
 
     let avgLoadTimeMs, minLoadTimeMs, maxLoadTimeMs, p95LoadTimeMs;
 
     if (loadTimes.length > 0) {
       loadTimes.sort((a, b) => a - b);
-      avgLoadTimeMs = Math.round(loadTimes.reduce((a, b) => a + b, 0) / loadTimes.length);
+      avgLoadTimeMs = Math.round(sumLoadTimes / loadTimes.length);
       minLoadTimeMs = loadTimes[0];
       maxLoadTimeMs = loadTimes[loadTimes.length - 1];
       p95LoadTimeMs = loadTimes[Math.floor(loadTimes.length * 0.95)];
