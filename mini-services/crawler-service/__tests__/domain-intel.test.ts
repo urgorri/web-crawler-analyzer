@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getSeedDomain } from '../domain-intel.ts';
+import { getSeedDomain, flattenPageDomains } from '../domain-intel.ts';
 
 describe('getSeedDomain', () => {
   it('extracts the domain from a simple URL', () => {
@@ -44,5 +44,43 @@ describe('getSeedDomain', () => {
   it('handles localhost or internal ips', () => {
     assert.strictEqual(getSeedDomain('http://localhost:3000'), 'localhost');
     assert.strictEqual(getSeedDomain('http://127.0.0.1:8080'), '127.0.0.1');
+  });
+});
+
+describe('flattenPageDomains', () => {
+  it('returns empty array for empty input', () => {
+    assert.deepEqual(flattenPageDomains([]), []);
+  });
+
+  it('extracts unique registrable domains', () => {
+    assert.deepEqual(
+      flattenPageDomains([
+        'https://example.com/page1',
+        'https://sub.example.com/page2',
+        'http://example.org'
+      ]),
+      ['example.com', 'example.org']
+    );
+  });
+
+  it('ignores malformed URLs', () => {
+    assert.deepEqual(
+      flattenPageDomains([
+        'https://example.com',
+        'not a url',
+        'http://example.org'
+      ]),
+      ['example.com', 'example.org']
+    );
+  });
+
+  it('handles country code TLDs', () => {
+    assert.deepEqual(
+      flattenPageDomains([
+        'https://example.co.uk',
+        'https://sub.example.co.uk'
+      ]),
+      ['example.co.uk']
+    );
   });
 });
