@@ -292,29 +292,30 @@ function MiniStat({ icon, label, value }: { icon: React.ReactNode; label: string
 
 function OverviewTab({ crawl }: { crawl: CrawlDetail }) {
   const pages = crawl.pages ?? [];
+  let totalWordCount = 0;
+  let totalCharCount = 0;
+  let totalInternalLinks = 0;
+  let totalExternalLinks = 0;
+  let totalImages = 0;
+  let totalForms = 0;
+  let totalScripts = 0;
+  let totalStylesheets = 0;
+
+  for (const p of pages) {
+    totalWordCount += p.wordCount ?? 0;
+    totalCharCount += p.charCount ?? 0;
+    totalInternalLinks += p.links?.internal?.length ?? 0;
+    totalExternalLinks += p.links?.external?.length ?? 0;
+    totalImages += p.images?.length ?? 0;
+    totalForms += p.forms?.length ?? 0;
+    totalScripts += p.scripts?.length ?? 0;
+    totalStylesheets += p.stylesheets?.length ?? 0;
+  }
+
   const avgWordCount =
-    pages.length > 0
-      ? Math.round(pages.reduce((s, p) => s + p.wordCount, 0) / pages.length)
-      : 0;
+    pages.length > 0 ? Math.round(totalWordCount / pages.length) : 0;
   const avgCharCount =
-    pages.length > 0
-      ? Math.round(pages.reduce((s, p) => s + p.charCount, 0) / pages.length)
-      : 0;
-  const totalInternalLinks = pages.reduce(
-    (s, p) => s + (p.links?.internal.length ?? 0),
-    0,
-  );
-  const totalExternalLinks = pages.reduce(
-    (s, p) => s + (p.links?.external.length ?? 0),
-    0,
-  );
-  const totalImages = pages.reduce((s, p) => s + (p.images?.length ?? 0), 0);
-  const totalForms = pages.reduce((s, p) => s + (p.forms?.length ?? 0), 0);
-  const totalScripts = pages.reduce((s, p) => s + (p.scripts?.length ?? 0), 0);
-  const totalStylesheets = pages.reduce(
-    (s, p) => s + (p.stylesheets?.length ?? 0),
-    0,
-  );
+    pages.length > 0 ? Math.round(totalCharCount / pages.length) : 0;
   const allTech = new Set(pages.flatMap((p) => p.techEvidence ?? []));
   const errorPages = pages.filter((p) => p.error);
 
