@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import path from "path";
 import { getCrawl } from "@/lib/crawl-storage";
+import { isValidId } from "@/lib/utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +13,12 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const progressFile = path.join(process.cwd(), "output", `${id}.progress.json`);
+
+    if (!isValidId(id)) {
+      return NextResponse.json({ error: "Invalid ID format" }, { status: 400 });
+    }
+
+    const progressFile = path.join(process.cwd(), "output", `${path.basename(id)}.progress.json`);
 
     try {
       const data = await readFile(progressFile, "utf8");

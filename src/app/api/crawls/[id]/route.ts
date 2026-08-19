@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteCrawl, getCrawl } from "@/lib/crawl-storage";
+import { isValidId } from "@/lib/utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +11,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+
+    if (!isValidId(id)) {
+      return NextResponse.json({ error: "Invalid ID format" }, { status: 400 });
+    }
+
     const crawl = await getCrawl(id);
 
     if (!crawl) {
@@ -29,6 +35,11 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+
+    if (!isValidId(id)) {
+      return NextResponse.json({ error: "Invalid ID format" }, { status: 400 });
+    }
+
     const deleted = await deleteCrawl(id);
 
     if (!deleted) {

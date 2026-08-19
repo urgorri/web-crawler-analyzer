@@ -120,8 +120,7 @@ export async function lookupRdapIp(ipAddress, timeoutMs = 12_000) {
 }
 export async function runTraceroute(target, timeoutMs = 30_000) {
     try {
-        const TracerClass = Traceroute;
-        const tracer = new TracerClass();
+        const tracer = new Traceroute();
         const hops = [];
         return await withTimeout(new Promise((resolve, reject) => {
             tracer
