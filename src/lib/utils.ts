@@ -13,3 +13,8 @@ export function isValidUrl(s: string): boolean {
     return false;
   }
 }
+
+export function isValidId(id: string): boolean {
+  if (!id) return false;
+  return /^[a-zA-Z0-9\-_]+$/.test(id);
+}

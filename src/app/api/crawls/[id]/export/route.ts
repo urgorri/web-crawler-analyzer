@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCrawl } from "@/lib/crawl-storage";
 import { normalizeCrawl } from "@/lib/crawl-json-normalizer";
+import { isValidId } from "@/lib/utils";
+import path from "path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +12,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params;
+    const { id: rawId } = await params;
+    if (!isValidId(rawId)) {
+      return NextResponse.json({ error: "Invalid crawl ID" }, { status: 400 });
+    }
+    const id = path.basename(rawId);
     const crawl = await getCrawl(id);
 
     if (!crawl) {

@@ -34,7 +34,8 @@ async function ensureOutputDir() {
 }
 
 function crawlPath(id: string) {
-  return path.join(outputDir, `${id}.json`);
+  const safeId = path.basename(id);
+  return path.join(outputDir, `${safeId}.json`);
 }
 
 export async function createCrawl(input: {

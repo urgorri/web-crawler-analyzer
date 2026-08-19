@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteCrawl, getCrawl } from "@/lib/crawl-storage";
+import { isValidId } from "@/lib/utils";
+import path from "path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +11,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params;
+    const { id: rawId } = await params;
+    if (!isValidId(rawId)) {
+      return NextResponse.json({ error: "Invalid crawl ID" }, { status: 400 });
+    }
+    const id = path.basename(rawId);
     const crawl = await getCrawl(id);
 
     if (!crawl) {
@@ -28,7 +34,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params;
+    const { id: rawId } = await params;
+    if (!isValidId(rawId)) {
+      return NextResponse.json({ error: "Invalid crawl ID" }, { status: 400 });
+    }
+    const id = path.basename(rawId);
     const deleted = await deleteCrawl(id);
 
     if (!deleted) {
