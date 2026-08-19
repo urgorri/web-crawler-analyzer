@@ -261,8 +261,6 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
       },
     });
 
-    console.log(`[API] Starting crawl ${crawlId} for ${urls.length} URL(s)`);
-
     const crawlerServiceDir = path.join(process.cwd(), "mini-services/crawler-service");
     const crawlBuildScript = path.join(crawlerServiceDir, "dist/crawl.js");
     const crawlTsScript = path.join(crawlerServiceDir, "crawl.ts");
