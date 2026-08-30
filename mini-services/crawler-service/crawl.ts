@@ -1,5 +1,7 @@
 import { chromium } from "playwright";
 import * as fs from "fs";
+import { lookup } from "node:dns/promises";
+import * as net from "node:net";
 import {
   getObservedDomain,
   getSeedDomain,
@@ -86,43 +88,101 @@ function sanitize(str: string): string {
   return r;
 }
 
+const LOCALHOST_ALIASES = ['localhost', '0.0.0.0', '127.0.0.1', '[::1]', '::1', '0000:0000:0000:0000:0000:0000:0000:0001', '::'];
+
 /**
- * Check if a hostname is a private IP address or internal network resource.
+ * Check if a hostname or IP string represents a private IP address or internal network resource.
  * Consistent with src/lib/ssrf-policy.ts
  */
 function isPrivateIp(hostname: string): boolean {
-  const normalized = hostname.toLowerCase();
+  let normalized = hostname.toLowerCase().trim();
+
+  if (normalized.startsWith('[') && normalized.endsWith(']')) {
+    normalized = normalized.slice(1, -1);
+  }
   
-  // Check for localhost aliases
-  if (["localhost", "0.0.0.0", "127.0.0.1", "[::1]"].includes(normalized)) {
+  if (LOCALHOST_ALIASES.includes(normalized)) {
     return true;
   }
   
-  // Check for IPv4 private ranges
+  if (normalized.startsWith('::ffff:')) {
+    const embeddedIpv4 = normalized.substring(7);
+    if (isPrivateIp(embeddedIpv4)) {
+      return true;
+    }
+  }
+
   const ipv4Match = normalized.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (ipv4Match) {
-    const [, a, b] = ipv4Match.map(Number);
+    const [, a, b, c, d] = ipv4Match.map(Number);
     
-    // 10.0.0.0/8
+    if (a > 255 || b > 255 || c > 255 || d > 255) {
+      return false;
+    }
+    
     if (a === 10) return true;
-    
-    // 127.0.0.0/8 (loopback)
     if (a === 127) return true;
-    
-    // 0.0.0.0/8 (this network)
     if (a === 0) return true;
-    
-    // 172.16.0.0/12
     if (a === 172 && b >= 16 && b <= 31) return true;
-    
-    // 192.168.0.0/16
     if (a === 192 && b === 168) return true;
-    
-    // 169.254.0.0/16 (link-local)
     if (a === 169 && b === 254) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true;
+    if (a >= 224) return true;
+  }
+
+  if (normalized === '::' || normalized === '::1') {
+    return true;
+  }
+
+  if (/^f[cd][0-9a-f]{2}:/i.test(normalized)) {
+    return true;
+  }
+
+  if (/^fe[89ab][0-9a-f]:/i.test(normalized)) {
+    return true;
+  }
+
+  if (/^ff[0-9a-f]{2}:/i.test(normalized)) {
+    return true;
   }
   
   return false;
+}
+
+/**
+ * Resolves a host name via DNS and checks if any resolved IP address points to a private/internal network.
+ * Consistent with src/lib/ssrf-policy.ts
+ */
+async function isPrivateHost(hostname: string): Promise<boolean> {
+  let normalized = hostname.toLowerCase().trim();
+  if (normalized.startsWith('[') && normalized.endsWith(']')) {
+    normalized = normalized.slice(1, -1);
+  }
+
+  if (isPrivateIp(normalized)) {
+    return true;
+  }
+
+  if (net.isIP(normalized)) {
+    return false;
+  }
+
+  try {
+    const records = await lookup(normalized, { all: true });
+    if (!records || records.length === 0) {
+      return false;
+    }
+
+    for (const record of records) {
+      if (isPrivateIp(record.address)) {
+        return true;
+      }
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 // ─── Tech evidence ─────────────────────────────────────────────────────────────
@@ -349,7 +409,7 @@ async function main() {
       }
       
       // Check for private/internal networks (unless explicitly allowed in dev)
-      if (!ALLOW_PRIVATE_TARGETS && isPrivateIp(parsed.hostname)) {
+      if (!ALLOW_PRIVATE_TARGETS && (await isPrivateHost(parsed.hostname))) {
         const blockReason = IS_DEV
           ? `Blocked (private network, set ALLOW_PRIVATE_TARGETS=true to allow): ${sanitize(url)}`
           : `Blocked (private network not allowed): ${sanitize(url)}`;

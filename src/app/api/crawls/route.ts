@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Apply SSRF protection policy - same validation as mini-services/crawler-service/crawl.ts
-    const { validUrls, rejections } = validateUrls(urls);
+    const { validUrls, rejections } = await validateUrls(urls);
 
     // Log rejected URLs for debugging
     if (rejections.length > 0) {
