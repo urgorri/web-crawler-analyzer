@@ -1069,20 +1069,23 @@ function DomainTab({ crawl }: { crawl: CrawlDetail }) {
 
 function NetworkTab({ crawl }: { crawl: CrawlDetail }) {
   const pages = crawl.pages ?? [];
-  const allRequests: Array<{
-    page: string;
-    url: string;
-    method: string;
-    status?: number;
-    resourceType?: string;
-    size?: number;
-  }> = [];
+  const allRequests = React.useMemo(() => {
+    const requests: Array<{
+      page: string;
+      url: string;
+      method: string;
+      status?: number;
+      resourceType?: string;
+      size?: number;
+    }> = [];
 
-  for (const page of pages) {
-    for (const req of page.network ?? []) {
-      allRequests.push({ page: page.url, ...req });
+    for (const page of pages) {
+      for (const req of page.network ?? []) {
+        requests.push({ page: page.url, ...req });
+      }
     }
-  }
+    return requests;
+  }, [pages]);
 
   if (allRequests.length === 0) {
     return (
