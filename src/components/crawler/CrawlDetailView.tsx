@@ -852,14 +852,18 @@ function TechTab({ crawl }: { crawl: CrawlDetail }) {
 // ─── Structured Data Tab ─────────────────────────────────────────────────────
 
 function StructuredTab({ crawl }: { crawl: CrawlDetail }) {
-  const pages = crawl.pages ?? [];
-  const items: { page: string; data: unknown[] }[] = [];
+  const items = React.useMemo(() => {
+    const pages = crawl.pages ?? [];
+    const result: { page: string; data: unknown[] }[] = [];
 
-  for (const page of pages) {
-    if (page.structuredData && page.structuredData.length > 0) {
-      items.push({ page: page.url, data: page.structuredData });
+    for (const page of pages) {
+      if (page.structuredData && page.structuredData.length > 0) {
+        result.push({ page: page.url, data: page.structuredData });
+      }
     }
-  }
+
+    return result;
+  }, [crawl.pages]);
 
   if (items.length === 0) {
     return (
