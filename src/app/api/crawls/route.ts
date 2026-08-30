@@ -91,75 +91,126 @@ export async function GET() {
   }
 }
 
+// ─── Request Validation Helper ───────────────────────────────────────────────
+
+type ValidationResult =
+  | {
+      success: true;
+      data: {
+        urlsToCrawl: string[];
+        seedDomain: string;
+        name?: string;
+        config: CrawlConfig;
+        warnings: string[];
+      };
+    }
+  | {
+      success: false;
+      error: string;
+      status: number;
+    };
+
+function validateCrawlPayload(body: unknown): ValidationResult {
+  const { urls, config: rawConfig, name: rawName } = (body || {}) as {
+    urls?: string[];
+    config?: CrawlConfig;
+    name?: string;
+  };
+
+  const name = typeof rawName === "string" ? rawName.trim().slice(0, 120) : undefined;
+
+  if (!urls || !Array.isArray(urls) || urls.length === 0) {
+    return {
+      success: false,
+      error: SSRF_ERROR_MESSAGES.NO_VALID_URLS,
+      status: 400,
+    };
+  }
+
+  // Apply SSRF protection policy - same validation as mini-services/crawler-service/crawl.ts
+  const { validUrls, rejections } = validateUrls(urls);
+
+  // Log rejected URLs for debugging
+  if (rejections.length > 0) {
+    console.warn("[API] URLs rejected by SSRF policy:", rejections);
+  }
+
+  if (validUrls.length === 0) {
+    const errorMessage = formatValidationError(rejections);
+    return {
+      success: false,
+      error: errorMessage || SSRF_ERROR_MESSAGES.NO_VALID_URLS,
+      status: 400,
+    };
+  }
+
+  const seedDomain = getRegistrableDomainFromUrl(validUrls[0]);
+  if (!seedDomain) {
+    return {
+      success: false,
+      error: "Unable to determine the crawl domain from the first valid URL.",
+      status: 400,
+    };
+  }
+
+  const scopeRejections: Array<{ url: string; reason: string }> = [];
+  const urlsInScope: string[] = [];
+  for (const url of validUrls) {
+    const urlDomain = getRegistrableDomainFromUrl(url);
+    if (!urlDomain || urlDomain !== seedDomain) {
+      scopeRejections.push({
+        url,
+        reason: `Out of scope. This crawl only accepts URLs under ${seedDomain}.`,
+      });
+      continue;
+    }
+    urlsInScope.push(url);
+  }
+
+  if (urlsInScope.length === 0) {
+    const errorMessage = formatValidationError(scopeRejections);
+    return {
+      success: false,
+      error: errorMessage || `No URLs matched the crawl domain ${seedDomain}.`,
+      status: 400,
+    };
+  }
+
+  const config = rawConfig ?? {};
+  const maxPages = config.maxPages ?? 50;
+  const urlsToCrawl = urlsInScope.slice(0, maxPages);
+  const warnings = [
+    ...rejections.map((item) => `${item.url}: ${item.reason}`),
+    ...scopeRejections.map((item) => `${item.url}: ${item.reason}`),
+  ];
+
+  return {
+    success: true,
+    data: {
+      urlsToCrawl,
+      seedDomain,
+      name,
+      config,
+      warnings,
+    },
+  };
+}
+
 // ─── POST /api/crawls ─────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { urls, config: rawConfig, name: rawName } = body as { urls?: string[]; config?: CrawlConfig; name?: string };
+    const validation = validateCrawlPayload(body);
 
-    const name = typeof rawName === 'string' ? rawName.trim().slice(0, 120) : undefined;
-
-    if (!urls || !Array.isArray(urls) || urls.length === 0) {
+    if (!validation.success) {
       return NextResponse.json(
-        { error: SSRF_ERROR_MESSAGES.NO_VALID_URLS },
-        { status: 400 },
+        { error: validation.error },
+        { status: validation.status }
       );
     }
 
-    // Apply SSRF protection policy - same validation as mini-services/crawler-service/crawl.ts
-    const { validUrls, rejections } = validateUrls(urls);
-
-    // Log rejected URLs for debugging
-    if (rejections.length > 0) {
-      console.warn("[API] URLs rejected by SSRF policy:", rejections);
-    }
-
-    if (validUrls.length === 0) {
-      const errorMessage = formatValidationError(rejections);
-      return NextResponse.json(
-        { error: errorMessage || SSRF_ERROR_MESSAGES.NO_VALID_URLS },
-        { status: 400 },
-      );
-    }
-
-    const seedDomain = getRegistrableDomainFromUrl(validUrls[0]);
-    if (!seedDomain) {
-      return NextResponse.json(
-        { error: "Unable to determine the crawl domain from the first valid URL." },
-        { status: 400 },
-      );
-    }
-
-    const scopeRejections: Array<{ url: string; reason: string }> = [];
-    const urlsInScope: string[] = [];
-    for (const url of validUrls) {
-      const urlDomain = getRegistrableDomainFromUrl(url);
-      if (!urlDomain || urlDomain !== seedDomain) {
-        scopeRejections.push({
-          url,
-          reason: `Out of scope. This crawl only accepts URLs under ${seedDomain}.`,
-        });
-        continue;
-      }
-      urlsInScope.push(url);
-    }
-
-    if (urlsInScope.length === 0) {
-      const errorMessage = formatValidationError(scopeRejections);
-      return NextResponse.json(
-        { error: errorMessage || `No URLs matched the crawl domain ${seedDomain}.` },
-        { status: 400 },
-      );
-    }
-
-    const config = rawConfig ?? {};
-    const maxPages = config.maxPages ?? 50;
-    const urlsToCrawl = urlsInScope.slice(0, maxPages);
-    const warnings = [
-      ...rejections.map((item) => `${item.url}: ${item.reason}`),
-      ...scopeRejections.map((item) => `${item.url}: ${item.reason}`),
-    ];
+    const { urlsToCrawl, seedDomain, name, config, warnings } = validation.data;
 
     const crawl = await createCrawl({
       urls: urlsToCrawl,
