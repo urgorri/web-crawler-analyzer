@@ -297,10 +297,19 @@ async function crawlPage(browser: import("playwright").Browser, url: string, con
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
+async function readStdin(): Promise<string> {
+  let data = "";
+  process.stdin.setEncoding("utf-8");
+  for await (const chunk of process.stdin) {
+    data += chunk;
+  }
+  return data;
+}
+
 async function main() {
   let input = "";
   try {
-    input = fs.readFileSync(0, "utf-8");
+    input = await readStdin();
   } catch (error) {
     process.stderr.write("Error: Failed to read from stdin\n");
     process.exit(1);
