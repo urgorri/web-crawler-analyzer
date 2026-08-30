@@ -7,7 +7,6 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import {
   ArrowLeft,
   Download,
-  ExternalLink,
   AlertCircle,
   Clock,
   Copy,
@@ -18,16 +17,11 @@ import {
   Link2,
   Code2,
   Terminal,
-  Loader2,
   Type,
-  Hash,
   FormInput,
-  FileCode2,
   Palette,
-  Cpu,
   Activity,
   FileJson,
-  ChevronRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -58,10 +52,10 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 
 import { useCrawlerStore } from '@/lib/crawler-store';
-import { getCrawl, exportCrawlJson, type CrawlDetail, type PageData } from '@/lib/crawler-api';
+import { getCrawl, exportCrawlJson, type CrawlDetail } from '@/lib/crawler-api';
+import { PageDetail, Section, SubSection, InfoRow } from './PageDetail';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -95,15 +89,6 @@ function statusBadge(status: string) {
 function fmtDate(iso: string | null) {
   if (!iso) return '-';
   return format(new Date(iso), 'MMM d, yyyy HH:mm:ss');
-}
-
-function truncate(s: string, max: number) {
-  if (s.length <= max) return s;
-  return s.slice(0, max) + '…';
-}
-
-function n(value: number | undefined | null, fallback = '-') {
-  return value != null ? value.toLocaleString() : fallback;
 }
 
 // ─── Main Component ──────────────────────────────────────────────────────────
@@ -232,10 +217,10 @@ export default function CrawlDetailView() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="pages">Pages</TabsTrigger>
           <TabsTrigger value="tech">Tech Evidence</TabsTrigger>
-        <TabsTrigger value="structured">Structured Data</TabsTrigger>
-        <TabsTrigger value="domain">Domain Intel</TabsTrigger>
-        <TabsTrigger value="network">Network</TabsTrigger>
-        <TabsTrigger value="raw">Raw JSON</TabsTrigger>
+          <TabsTrigger value="structured">Structured Data</TabsTrigger>
+          <TabsTrigger value="domain">Domain Intel</TabsTrigger>
+          <TabsTrigger value="network">Network</TabsTrigger>
+          <TabsTrigger value="raw">Raw JSON</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -347,7 +332,7 @@ function OverviewTab({ crawl }: { crawl: CrawlDetail }) {
       <StatCard
         title="External Links"
         value={totalExternalLinks.toLocaleString()}
-        icon={<ExternalLink className="size-4" />}
+        icon={<Link2 className="size-4" />}
       />
       <StatCard
         title="Images"
@@ -514,268 +499,6 @@ function PagesTab({ crawl }: { crawl: CrawlDetail }) {
         </ScrollArea>
       </CardContent>
     </Card>
-  );
-}
-
-function PageDetail({ page }: { page: PageData }) {
-  return (
-    <div className="flex flex-col gap-5 text-sm">
-      {page.error && (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-destructive">
-          <p className="font-medium">Error</p>
-          <p>{page.error}</p>
-        </div>
-      )}
-
-      {/* Basics */}
-      <Section title="General" icon={<Globe className="size-3.5" />}>
-        <InfoRow label="URL" value={page.url} mono />
-        <InfoRow label="Final URL" value={page.finalUrl} mono />
-        <InfoRow label="Status Code" value={page.statusCode != null ? String(page.statusCode) : '-'} />
-        <InfoRow label="Title" value={page.title} />
-        <InfoRow label="Language" value={page.lang} />
-        <InfoRow label="Charset" value={page.charset} />
-        <InfoRow label="Generator" value={page.metaGenerator} />
-        <InfoRow label="Word Count" value={n(page.wordCount)} />
-        <InfoRow label="Char Count" value={n(page.charCount)} />
-      </Section>
-
-      {/* Performance */}
-      {(page.loadTimeMs != null || page.domContentLoadedMs != null || page.fullContentReadyMs != null) && (
-        <Section title="Performance" icon={<Activity className="size-3.5" />}>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <InfoRow
-              label="DOM Content Loaded"
-              value={page.domContentLoadedMs != null ? `${page.domContentLoadedMs}ms` : '-'}
-            />
-            <InfoRow
-              label="Full Content Ready"
-              value={page.fullContentReadyMs != null ? `${page.fullContentReadyMs}ms` : '-'}
-            />
-            <InfoRow
-              label="Total Load Time"
-              value={page.loadTimeMs != null ? `${page.loadTimeMs}ms` : '-'}
-            />
-          </div>
-        </Section>
-      )}
-
-      {/* Meta */}
-      <Section title="Meta Information" icon={<Hash className="size-3.5" />}>
-        <InfoRow label="Description" value={page.metaDescription} />
-        <InfoRow label="Canonical" value={page.canonical} mono />
-        <InfoRow label="Robots" value={page.robotsMeta} />
-        <InfoRow label="Direction" value={page.dir} />
-        <InfoRow label="Body Classes" value={page.bodyClasses?.join(', ')} />
-        <InfoRow label="HTML Classes" value={page.htmlClasses?.join(', ')} />
-      </Section>
-
-      {/* Headings */}
-      {page.headings && (
-        <Section title="Headings" icon={<Type className="size-3.5" />}>
-          <div className="flex flex-col gap-2 ml-2">
-            {(['h1', 'h2', 'h3'] as const).map((tag) => {
-              const items = page.headings?.[tag] ?? [];
-              if (items.length === 0) return null;
-              return (
-                <div key={tag}>
-                  <span className="font-semibold uppercase text-xs text-muted-foreground">
-                    {tag}
-                  </span>
-                  <ul className="list-disc pl-6 mt-1">
-                    {items.map((h, i) => (
-                      <li key={i} className="text-foreground">
-                        {h}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-          </div>
-        </Section>
-      )}
-
-      {/* Buttons */}
-      {page.buttons && page.buttons.length > 0 && (
-        <Section title="Buttons" icon={<FormInput className="size-3.5" />}>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Text</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>ARIA Label</TableHead>
-                <TableHead>Href</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {page.buttons.map((btn, i) => (
-                <TableRow key={i}>
-                  <TableCell>{btn.text || '-'}</TableCell>
-                  <TableCell>{btn.type}</TableCell>
-                  <TableCell>{btn.aria_label || '-'}</TableCell>
-                  <TableCell className="max-w-[200px] truncate font-mono text-xs">
-                    {btn.href || '-'}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Section>
-      )}
-
-      {/* Links */}
-      {page.links && (
-        <Section title="Links" icon={<Link2 className="size-3.5" />}>
-          <SubSection label={`Internal (${page.links.internal.length})`}>
-            {page.links.internal.length === 0 ? (
-              <p className="text-muted-foreground text-xs">None</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Text</TableHead>
-                    <TableHead>Href</TableHead>
-                    <TableHead>Rel</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {page.links.internal.map((l, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="max-w-[200px] truncate">{l.text}</TableCell>
-                      <TableCell className="max-w-[300px] truncate font-mono text-xs">{l.href}</TableCell>
-                      <TableCell>{l.rel || '-'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </SubSection>
-          <SubSection label={`External (${page.links.external.length})`}>
-            {page.links.external.length === 0 ? (
-              <p className="text-muted-foreground text-xs">None</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Text</TableHead>
-                    <TableHead>Href</TableHead>
-                    <TableHead>Rel</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {page.links.external.map((l, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="max-w-[200px] truncate">{l.text}</TableCell>
-                      <TableCell className="max-w-[300px] truncate font-mono text-xs">{l.href}</TableCell>
-                      <TableCell>{l.rel || '-'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </SubSection>
-        </Section>
-      )}
-
-      {/* Forms */}
-      {page.forms && page.forms.length > 0 && (
-        <Section title="Forms" icon={<FormInput className="size-3.5" />}>
-          {page.forms.map((form, fi) => (
-            <div key={fi} className="rounded-md border p-3 space-y-2">
-              <div className="flex gap-4 text-xs text-muted-foreground">
-                <span>Action: <code className="font-mono">{form.action}</code></span>
-                <span>Method: <code className="font-mono">{form.method}</code></span>
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Label</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {form.fields.map((f, fj) => (
-                    <TableRow key={fj}>
-                      <TableCell className="font-mono text-xs">{f.name}</TableCell>
-                      <TableCell>{f.type}</TableCell>
-                      <TableCell>{f.label || '-'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ))}
-        </Section>
-      )}
-
-      {/* Images */}
-      {page.images && page.images.length > 0 && (
-        <Section title="Images" icon={<ImageIcon className="size-3.5" />}>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {page.images.map((img, i) => (
-              <div key={i} className="flex items-start gap-2 rounded-md border p-2">
-                <div className="size-12 shrink-0 rounded bg-muted flex items-center justify-center overflow-hidden">
-                  <img
-                    src={img.src}
-                    alt={img.alt || ''}
-                    className="size-12 object-cover"
-                    loading="lazy"
-                  />
-                </div>
-                <div className="min-w-0 flex flex-col gap-0.5">
-                  <p className="text-xs truncate font-mono">{truncate(img.src, 60)}</p>
-                  <p className="text-xs text-muted-foreground">Alt: {img.alt || '-'}</p>
-                  {(img.width || img.height) && (
-                    <p className="text-xs text-muted-foreground">
-                      {img.width ?? '?'}×{img.height ?? '?'}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {/* Scripts */}
-      {page.scripts && page.scripts.length > 0 && (
-        <Section title="Scripts" icon={<Terminal className="size-3.5" />}>
-          <ul className="space-y-1">
-            {page.scripts.map((s, i) => (
-              <li key={i} className="font-mono text-xs text-muted-foreground break-all">
-                {truncate(s, 120)}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
-
-      {/* Stylesheets */}
-      {page.stylesheets && page.stylesheets.length > 0 && (
-        <Section title="Stylesheets" icon={<Palette className="size-3.5" />}>
-          <ul className="space-y-1">
-            {page.stylesheets.map((s, i) => (
-              <li key={i} className="font-mono text-xs text-muted-foreground break-all">
-                {truncate(s, 120)}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
-
-      {/* Tech Evidence */}
-      {page.techEvidence && page.techEvidence.length > 0 && (
-        <Section title="Tech Evidence" icon={<Code2 className="size-3.5" />}>
-          <div className="flex flex-wrap gap-1.5">
-            {page.techEvidence.map((t, i) => (
-              <Badge key={i} variant="secondary">{t}</Badge>
-            ))}
-          </div>
-        </Section>
-      )}
-    </div>
   );
 }
 
@@ -1195,52 +918,6 @@ function JsonPreview({ label, data }: { label: string; data: Record<string, unkn
       <pre className="max-h-72 overflow-auto text-xs text-muted-foreground">
         {data ? JSON.stringify(data, null, 2) : '-'}
       </pre>
-    </div>
-  );
-}
-
-// ─── Shared layout helpers ───────────────────────────────────────────────────
-
-function Section({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div className="flex items-center gap-2 mb-2">
-        {icon}
-        <h4 className="font-semibold text-sm">{title}</h4>
-      </div>
-      <Separator className="mb-3" />
-      <div className="flex flex-col gap-2 ml-5">{children}</div>
-    </div>
-  );
-}
-
-function SubSection({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="mb-3">
-      <p className="text-xs font-semibold text-muted-foreground uppercase mb-1.5">
-        {label}
-      </p>
-      {children}
-    </div>
-  );
-}
-
-function InfoRow({ label, value, mono }: { label: string; value?: string | null; mono?: boolean }) {
-  if (!value) return null;
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className={mono ? 'font-mono text-xs break-all' : 'text-sm'}>
-        {value}
-      </span>
     </div>
   );
 }
