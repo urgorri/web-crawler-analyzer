@@ -131,6 +131,7 @@ describe('crawl-storage', () => {
   describe('listCrawls', () => {
     it('lists JSON files, excluding progress files, sorted by startedAt descending', async () => {
       vi.mocked(fsPromises.mkdir).mockResolvedValue(undefined);
+      vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined as any);
 
       const files = ['crawl1.json', 'crawl2.json', 'crawl1.progress.json', 'other.txt'];
       // @ts-ignore - mock returning string array for simplicity
