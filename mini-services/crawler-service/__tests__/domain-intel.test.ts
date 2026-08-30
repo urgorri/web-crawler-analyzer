@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getSeedDomain, getObservedDomain } from '../domain-intel.ts';
+import { promises as fs, existsSync, unlinkSync } from 'node:fs';
+import { getSeedDomain, getObservedDomain, gatherDomainIntel } from '../domain-intel.ts';
 
 describe('getSeedDomain', () => {
   it('extracts the domain from a simple URL', () => {
@@ -85,5 +86,43 @@ describe('getObservedDomain', () => {
 
   it('falls back to the fallback value when the urls array is empty', () => {
     assert.strictEqual(getObservedDomain([], 'fallback.com'), 'fallback.com');
+  });
+});
+
+describe('gatherDomainIntel', () => {
+  it('returns a valid DomainIntel structure', async () => {
+    const result = await gatherDomainIntel('example.com', 'example.com', 'https://example.com', { portScanPorts: [] });
+    assert.strictEqual(result.seedDomain, 'example.com');
+    assert.strictEqual(result.seedUrl, 'https://example.com');
+    assert.ok(Array.isArray(result.resolvedIps));
+    assert.ok(Array.isArray(result.traceroute));
+    assert.ok(Array.isArray(result.ports));
+  });
+
+  it('writes debug file asynchronously when DEBUG environment variable is set', async () => {
+    const debugFilePath = 'intel-debug.json';
+    if (existsSync(debugFilePath)) {
+      unlinkSync(debugFilePath);
+    }
+
+    process.env.DEBUG = 'true';
+    try {
+      const start = performance.now();
+      const result = await gatherDomainIntel('localhost', 'localhost', 'http://localhost:3000', { portScanPorts: [] });
+      const duration = performance.now() - start;
+
+      assert.ok(duration < 5000, `Execution took ${duration}ms`);
+      assert.strictEqual(result.seedDomain, 'localhost');
+      assert.ok(existsSync(debugFilePath), 'intel-debug.json should be created when DEBUG=true');
+
+      const content = await fs.readFile(debugFilePath, 'utf-8');
+      const parsed = JSON.parse(content);
+      assert.strictEqual(parsed.seedDomain, 'localhost');
+    } finally {
+      delete process.env.DEBUG;
+      if (existsSync(debugFilePath)) {
+        unlinkSync(debugFilePath);
+      }
+    }
   });
 });

@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
 import * as fs from "fs";
-import { getObservedDomain, getSeedDomain, lookupRdapIp, lookupWhois, resolveDns, runTraceroute, scanPorts, selectPrimaryIp, } from "./domain-intel.js";
+import { gatherDomainIntel, getObservedDomain, getSeedDomain, } from "./domain-intel.js";
 // ─── SSRF Policy Configuration ────────────────────────────────────────────────
 const ALLOW_PRIVATE_TARGETS = process.env.ALLOW_PRIVATE_TARGETS === 'true';
 const IS_DEV = process.env.NODE_ENV === 'development';
@@ -374,79 +374,7 @@ async function main() {
         await browser.close();
     }
     const observedDomain = getObservedDomain(pages.flatMap((page) => [page.final_url, page.url, page.canonical].filter(Boolean)), seedDomain);
-    const domainIntelErrors = [];
-    let dnsIntel = {
-        a: [],
-        aaaa: [],
-        ns: [],
-        mx: [],
-        cname: [],
-        txt: [],
-    };
-    let resolvedIps = [];
-    let whoisDomain = null;
-    let whoisIp = null;
-    let rdapIp = null;
-    let traceroute = [];
-    let ports = [];
-    try {
-        dnsIntel = await resolveDns(seedDomain);
-        resolvedIps = [...dnsIntel.a, ...dnsIntel.aaaa];
-        if (dnsIntel.a.length === 0 &&
-            dnsIntel.aaaa.length === 0 &&
-            dnsIntel.ns.length === 0 &&
-            dnsIntel.mx.length === 0) {
-        }
-    }
-    catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        domainIntelErrors.push(message);
-    }
-    const primaryIp = selectPrimaryIp(dnsIntel);
-    try {
-        const whois = await lookupWhois(seedDomain, primaryIp);
-        whoisDomain = whois.domain;
-        whoisIp = whois.ip;
-    }
-    catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        domainIntelErrors.push(message);
-    }
-    try {
-        rdapIp = await lookupRdapIp(primaryIp);
-    }
-    catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        domainIntelErrors.push(message);
-    }
-    try {
-        traceroute = await runTraceroute(primaryIp ?? seedDomain);
-    }
-    catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        domainIntelErrors.push(message);
-    }
-    try {
-        ports = await scanPorts(primaryIp, config.portScanPorts ?? DEFAULT_PORTS);
-    }
-    catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        domainIntelErrors.push(message);
-    }
-    const domainIntel = {
-        seedDomain,
-        observedDomain,
-        seedUrl: validUrls[0],
-        resolvedIps,
-        dns: dnsIntel,
-        whoisDomain,
-        whoisIp,
-        rdapIp,
-        traceroute,
-        ports,
-        warnings: [],
-        errors: domainIntelErrors,
-    };
+    const domainIntel = await gatherDomainIntel(seedDomain, observedDomain, validUrls[0], config);
     const output = {
         status: errors.length === 0 ? "completed" : "partial",
         pages,

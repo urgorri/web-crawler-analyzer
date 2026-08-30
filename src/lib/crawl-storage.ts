@@ -153,7 +153,7 @@ export async function listCrawls() {
       fileStat = stats;
 
       // Fire and forget writing the summary for next time
-      writeFile(sumPath, JSON.stringify(parsed, null, 2), "utf8").catch(() => {});
+      Promise.resolve(writeFile(sumPath, JSON.stringify(parsed, null, 2), "utf8")).catch(() => {});
     }
 
     return {

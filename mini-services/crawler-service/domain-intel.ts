@@ -1,4 +1,5 @@
 import { promises as dns } from "node:dns";
+import { promises as fs } from "node:fs";
 import { parse } from "tldts";
 import { whoisDomain, whoisIp as whoisIpLookup } from "whoiser";
 import { ip as rdapIpLookup } from "node-rdap";
@@ -167,13 +168,45 @@ export async function lookupRdapIp(ipAddress: string | null, timeoutMs = 12_000)
   }
 }
 
+import { execSync } from "node:child_process";
+
+function hasTracerouteBinary(): boolean {
+  try {
+    const cmd = process.platform === "win32" ? "where tracert" : "which traceroute";
+    execSync(cmd, { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function runTraceroute(target: string, timeoutMs = 30_000): Promise<TraceHop[]> {
+  if (!hasTracerouteBinary()) {
+    return [];
+  }
   try {
     const tracer = new Traceroute();
     const hops: TraceHop[] = [];
 
     return await withTimeout(
-      new Promise<TraceHop[]>((resolve, reject) => {
+      new Promise<TraceHop[]>((resolve) => {
+        let resolved = false;
+        const done = () => {
+          if (!resolved) {
+            resolved = true;
+            process.removeListener("uncaughtException", handleError);
+            resolve(hops);
+          }
+        };
+
+        const handleError = (err: any) => {
+          if (err?.code === "ENOENT" || String(err?.syscall).includes("traceroute")) {
+            done();
+          }
+        };
+
+        process.once("uncaughtException", handleError);
+
         tracer
           .on("hop", (hop: any) => {
             hops.push({
@@ -184,16 +217,14 @@ export async function runTraceroute(target: string, timeoutMs = 30_000): Promise
               rtt3: hop?.rtt3 ? String(hop.rtt3) : undefined,
             });
           })
-          .on("close", (code: number) => {
-            if (code === 0 || code === null || code === undefined) {
-              resolve(hops);
-            } else {
-              reject(new Error(`Traceroute exited with code ${code}`));
-            }
-          })
-          .on("error", reject);
+          .on("close", done)
+          .on("error", done);
 
-        tracer.trace(target);
+        try {
+          tracer.trace(target);
+        } catch {
+          done();
+        }
       }),
       timeoutMs,
       "Traceroute",
@@ -271,4 +302,98 @@ export function flattenPageDomains(values: string[]): string[] {
   }
 
   return domains;
+}
+
+const DEBUG = process.env.DEBUG === "true" || process.env.DEBUG === "1";
+
+export async function gatherDomainIntel(
+  seedDomain: string,
+  observedDomain: string | null,
+  seedUrl: string,
+  config?: { portScanPorts?: number[] },
+): Promise<DomainIntel> {
+  const domainIntelErrors: string[] = [];
+  let dnsIntel: DomainDnsIntel = {
+    a: [],
+    aaaa: [],
+    ns: [],
+    mx: [],
+    cname: [],
+    txt: [],
+  };
+  let resolvedIps: string[] = [];
+  let whoisDomainResult: Record<string, unknown> | null = null;
+  let whoisIpResult: Record<string, unknown> | null = null;
+  let rdapIpResult: Record<string, unknown> | null = null;
+  let traceroute: TraceHop[] = [];
+  let ports: PortIntel[] = [];
+
+  try {
+    dnsIntel = await resolveDns(seedDomain);
+    resolvedIps = [...dnsIntel.a, ...dnsIntel.aaaa];
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    domainIntelErrors.push(message);
+  }
+
+  const primaryIp = selectPrimaryIp(dnsIntel);
+
+  try {
+    const whois = await lookupWhois(seedDomain, primaryIp);
+    whoisDomainResult = whois.domain;
+    whoisIpResult = whois.ip;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    domainIntelErrors.push(message);
+  }
+
+  try {
+    rdapIpResult = await lookupRdapIp(primaryIp);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    domainIntelErrors.push(message);
+  }
+
+  try {
+    traceroute = await runTraceroute(primaryIp ?? seedDomain);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    domainIntelErrors.push(message);
+  }
+
+  try {
+    ports = await scanPorts(primaryIp, config?.portScanPorts ?? [21, 22, 25, 53, 80, 110, 143, 443, 587, 8080, 8443, 3306, 5432, 6379]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    domainIntelErrors.push(message);
+  }
+
+  const result: DomainIntel = {
+    seedDomain,
+    observedDomain,
+    seedUrl,
+    resolvedIps,
+    dns: dnsIntel,
+    whoisDomain: whoisDomainResult,
+    whoisIp: whoisIpResult,
+    rdapIp: rdapIpResult,
+    traceroute,
+    ports,
+    warnings: [],
+    errors: domainIntelErrors,
+  };
+
+  const debug = process.env.DEBUG === "true" || process.env.DEBUG === "1";
+  if (debug && result) {
+    try {
+      await fs.writeFile(
+        'intel-debug.json',
+        JSON.stringify(result, null, 2)
+      );
+    } catch {
+      // ignore write error
+    }
+  }
+
+  return result;
 }
