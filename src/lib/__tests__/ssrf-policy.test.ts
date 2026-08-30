@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { formatValidationError, validateUrl } from '../ssrf-policy';
+import { formatValidationError, getSsrfPolicyStatus, validateUrl } from '../ssrf-policy';
 
 describe('validateUrl', () => {
   test('Should return invalid for non-URL strings', () => {
@@ -55,5 +55,26 @@ describe('formatValidationError', () => {
       ]),
       'http://localhost: Not allowed (E_BLOCKED), http://127.0.0.1: Blocked (PRIVATE_NETWORK_BLOCKED)'
     );
+  });
+});
+
+describe('getSsrfPolicyStatus', () => {
+  test('Should return current SSRF policy status object', () => {
+    const status = getSsrfPolicyStatus();
+
+    assert.strictEqual(typeof status.allowPrivateTargets, 'boolean');
+    assert.strictEqual(typeof status.isDev, 'boolean');
+    assert.strictEqual(typeof status.effectivePolicy, 'string');
+
+    if (status.allowPrivateTargets) {
+      assert.strictEqual(status.effectivePolicy, 'PERMISSIVE (private targets allowed)');
+    } else if (status.isDev) {
+      assert.strictEqual(
+        status.effectivePolicy,
+        'STRICT (private targets blocked, set ALLOW_PRIVATE_TARGETS=true to enable)'
+      );
+    } else {
+      assert.strictEqual(status.effectivePolicy, 'STRICT (private targets blocked)');
+    }
   });
 });
