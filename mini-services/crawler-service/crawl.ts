@@ -19,7 +19,7 @@ const IS_DEV = process.env.NODE_ENV === 'development';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface CrawlConfig {
+export interface CrawlConfig {
   timeout?: number;
   userAgent?: string;
   maxPages?: number;
@@ -29,14 +29,14 @@ interface CrawlConfig {
   portScanPorts?: number[];
 }
 
-interface CrawlRequest {
+export interface CrawlRequest {
   crawlId?: string;
   urls: string[];
   config?: CrawlConfig;
   scopeDomain?: string;
 }
 
-interface PageResult {
+export interface PageResult {
   url: string;
   final_url: string;
   status_code: number;
@@ -80,7 +80,7 @@ const SENSITIVE_PATTERNS = [
   /password[=:][^\s&"']*/gi, /session[_-]?id[=:][^\s&"']*/gi,
 ];
 
-function sanitize(str: string): string {
+export function sanitize(str: string): string {
   let r = str;
   for (const p of SENSITIVE_PATTERNS) r = r.replace(p, "[REDACTED]");
   return r;
@@ -90,7 +90,7 @@ function sanitize(str: string): string {
  * Check if a hostname is a private IP address or internal network resource.
  * Consistent with src/lib/ssrf-policy.ts
  */
-function isPrivateIp(hostname: string): boolean {
+export function isPrivateIp(hostname: string): boolean {
   const normalized = hostname.toLowerCase();
   
   // Check for localhost aliases
@@ -139,7 +139,7 @@ const LIB_PATTERNS = [
 
 const LIB_REGEXPS = LIB_PATTERNS.map((lib) => ({ lib, regex: new RegExp(lib, "i") }));
 
-function extractTechEvidence(page: PageResult): string[] {
+export function extractTechEvidence(page: PageResult): string[] {
   const evidence: string[] = [];
   const seen = new Set<string>();
   const add = (s: string) => { if (!seen.has(s)) { seen.add(s); evidence.push(s); } };
@@ -159,7 +159,7 @@ function extractTechEvidence(page: PageResult): string[] {
 
 // ─── Page extraction ──────────────────────────────────────────────────────────
 
-async function crawlPage(browser: import("playwright").Browser, url: string, config: CrawlConfig): Promise<PageResult> {
+export async function crawlPage(browser: import("playwright").Browser, url: string, config: CrawlConfig): Promise<PageResult> {
   const timeout = config.timeout ?? 30000;
   const waitNetwork = config.waitNetwork ?? 2000;
   const ctxOpts: Record<string, unknown> = { ignoreHTTPSErrors: true, javaScriptEnabled: true };
@@ -295,33 +295,22 @@ async function crawlPage(browser: import("playwright").Browser, url: string, con
   }
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── Input Parsing & URL Validation ──────────────────────────────────────────
 
-async function main() {
-  let input = "";
-  try {
-    input = fs.readFileSync(0, "utf-8");
-  } catch (error) {
-    process.stderr.write("Error: Failed to read from stdin\n");
-    process.exit(1);
-  }
-
-  if (!input) {
-    process.stderr.write("Error: CRAWLER_INPUT from stdin is empty\n");
-    process.exit(1);
+export function parseInputRequest(rawInput: string): { body: CrawlRequest; config: CrawlConfig } {
+  if (!rawInput || !rawInput.trim()) {
+    throw new Error("CRAWLER_INPUT from stdin is empty");
   }
 
   let body: CrawlRequest;
   try {
-    body = JSON.parse(input);
+    body = JSON.parse(rawInput);
   } catch {
-    process.stderr.write("Error: Invalid JSON in stdin\n");
-    process.exit(1);
+    throw new Error("Invalid JSON in stdin");
   }
 
   if (!body.urls || !Array.isArray(body.urls) || body.urls.length === 0) {
-    process.stderr.write("Error: urls array required\n");
-    process.exit(1);
+    throw new Error("urls array required");
   }
 
   const config: CrawlConfig = {
@@ -331,23 +320,32 @@ async function main() {
     headless: body.config?.headless ?? true,
     waitNetwork: body.config?.waitNetwork ?? 2000,
     concurrency: Math.min(body.config?.concurrency ?? 2, 5),
+    portScanPorts: body.config?.portScanPorts,
   };
 
-  const urls = body.urls.slice(0, config.maxPages ?? 50);
+  return { body, config };
+}
+
+export function validateAndFilterUrls(
+  rawUrls: string[],
+  config: CrawlConfig,
+  scopeDomain?: string
+): { validUrls: string[]; warnings: string[]; seedDomain: string } {
+  const urls = rawUrls.slice(0, config.maxPages ?? 50);
   const warnings: string[] = [];
   const validUrls: string[] = [];
-  const seedDomain = body.scopeDomain?.trim().toLowerCase() || getSeedDomain(urls[0]);
+  const seedDomain = scopeDomain?.trim().toLowerCase() || getSeedDomain(urls[0]);
 
   for (const url of urls) {
     try {
       const parsed = new URL(url);
-      
+
       // Check protocol
       if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
         warnings.push(`Invalid scheme: ${sanitize(url)}`);
         continue;
       }
-      
+
       // Check for private/internal networks (unless explicitly allowed in dev)
       if (!ALLOW_PRIVATE_TARGETS && isPrivateIp(parsed.hostname)) {
         const blockReason = IS_DEV
@@ -368,61 +366,71 @@ async function main() {
     }
   }
 
-  if (validUrls.length === 0) {
-    const result = { status: "partial", pages: [], errors: ["No valid URLs"], warnings, stats: { total: urls.length, success: 0, failed: urls.length } };
-    process.stdout.write(JSON.stringify(result));
-    return;
-  }
+  return { validUrls, warnings, seedDomain };
+}
 
+// ─── Batch Execution ─────────────────────────────────────────────────────────
+
+export async function executeCrawlBatch(
+  browser: import("playwright").Browser,
+  validUrls: string[],
+  config: CrawlConfig,
+  crawlId?: string
+): Promise<{ pages: PageResult[]; errors: string[] }> {
   const pages: PageResult[] = [];
   const errors: string[] = [];
   const concurrency = config.concurrency ?? 2;
 
-  const browser = await chromium.launch({ headless: config.headless });
-  try {
-    for (let i = 0; i < validUrls.length; i += concurrency) {
-      const batch = validUrls.slice(i, i + concurrency);
-      const results = await Promise.allSettled(batch.map((url) => crawlPage(browser, url, config)));
-      for (let j = 0; j < results.length; j++) {
-        const result = results[j];
-        if (result.status === "fulfilled") {
-          pages.push(result.value);
-          /**
-           * IPC Progress Reporting
-           *
-           * We use stderr to stream real-time progress updates to the parent process.
-           * This decouples the crawler from the parent process's file system and
-           * allows the parent to handle progress storage/broadcasting.
-           *
-           * (stdout is reserved exclusively for the final JSON result).
-           */
-          process.stderr.write(`PROGRESS_UPDATE:${JSON.stringify({
-            crawlId: body.crawlId,
-            url: result.value.url,
-            title: result.value.title,
-            pageCount: pages.length,
-            errorCount: errors.length,
-            status: 'running',
-          })}\n`);
-        }
-        else {
-          const msg = result.reason?.message ?? String(result.reason);
-          errors.push(`${sanitize(batch[j])}: ${sanitize(msg)}`);
-          process.stderr.write(`PROGRESS_UPDATE:${JSON.stringify({
-            crawlId: body.crawlId,
-            url: batch[j],
-            error: msg,
-            pageCount: pages.length,
-            errorCount: errors.length,
-            status: 'running',
-          })}\n`);
-        }
+  for (let i = 0; i < validUrls.length; i += concurrency) {
+    const batch = validUrls.slice(i, i + concurrency);
+    const results = await Promise.allSettled(batch.map((url) => crawlPage(browser, url, config)));
+    for (let j = 0; j < results.length; j++) {
+      const result = results[j];
+      if (result.status === "fulfilled") {
+        pages.push(result.value);
+        /**
+         * IPC Progress Reporting
+         *
+         * We use stderr to stream real-time progress updates to the parent process.
+         * This decouples the crawler from the parent process's file system and
+         * allows the parent to handle progress storage/broadcasting.
+         *
+         * (stdout is reserved exclusively for the final JSON result).
+         */
+        process.stderr.write(`PROGRESS_UPDATE:${JSON.stringify({
+          crawlId,
+          url: result.value.url,
+          title: result.value.title,
+          pageCount: pages.length,
+          errorCount: errors.length,
+          status: 'running',
+        })}\n`);
+      } else {
+        const msg = result.reason?.message ?? String(result.reason);
+        errors.push(`${sanitize(batch[j])}: ${sanitize(msg)}`);
+        process.stderr.write(`PROGRESS_UPDATE:${JSON.stringify({
+          crawlId,
+          url: batch[j],
+          error: msg,
+          pageCount: pages.length,
+          errorCount: errors.length,
+          status: 'running',
+        })}\n`);
       }
     }
-  } finally {
-    await browser.close();
   }
 
+  return { pages, errors };
+}
+
+// ─── Domain Intelligence Gathering ───────────────────────────────────────────
+
+export async function gatherCrawlDomainIntel(
+  seedDomain: string,
+  validUrls: string[],
+  pages: PageResult[],
+  config: CrawlConfig
+): Promise<DomainIntel> {
   const observedDomain = getObservedDomain(
     pages.flatMap((page) => [page.final_url, page.url, page.canonical].filter(Boolean) as string[]),
     seedDomain,
@@ -447,13 +455,6 @@ async function main() {
   try {
     dnsIntel = await resolveDns(seedDomain);
     resolvedIps = [...dnsIntel.a, ...dnsIntel.aaaa];
-    if (
-      dnsIntel.a.length === 0 &&
-      dnsIntel.aaaa.length === 0 &&
-      dnsIntel.ns.length === 0 &&
-      dnsIntel.mx.length === 0
-    ) {
-    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     domainIntelErrors.push(message);
@@ -491,7 +492,7 @@ async function main() {
     domainIntelErrors.push(message);
   }
 
-  const domainIntel: DomainIntel = {
+  return {
     seedDomain,
     observedDomain,
     seedUrl: validUrls[0],
@@ -505,6 +506,62 @@ async function main() {
     warnings: [],
     errors: domainIntelErrors,
   };
+}
+
+// ─── Main Orchestrator ───────────────────────────────────────────────────────
+
+export function readStdinInput(): string {
+  return fs.readFileSync(0, "utf-8");
+}
+
+async function main() {
+  let input = "";
+  try {
+    input = readStdinInput();
+  } catch (error) {
+    process.stderr.write("Error: Failed to read from stdin\n");
+    process.exit(1);
+  }
+
+  let parsedInput: ReturnType<typeof parseInputRequest>;
+  try {
+    parsedInput = parseInputRequest(input);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`Error: ${message}\n`);
+    process.exit(1);
+  }
+
+  const { body, config } = parsedInput;
+  const { validUrls, warnings, seedDomain } = validateAndFilterUrls(body.urls, config, body.scopeDomain);
+
+  const slicedUrlsLength = body.urls.slice(0, config.maxPages ?? 50).length;
+
+  if (validUrls.length === 0) {
+    const result = {
+      status: "partial",
+      pages: [],
+      errors: ["No valid URLs"],
+      warnings,
+      stats: { total: slicedUrlsLength, success: 0, failed: slicedUrlsLength },
+    };
+    process.stdout.write(JSON.stringify(result));
+    return;
+  }
+
+  const pages: PageResult[] = [];
+  const errors: string[] = [];
+
+  const browser = await chromium.launch({ headless: config.headless });
+  try {
+    const crawlResult = await executeCrawlBatch(browser, validUrls, config, body.crawlId);
+    pages.push(...crawlResult.pages);
+    errors.push(...crawlResult.errors);
+  } finally {
+    await browser.close();
+  }
+
+  const domainIntel = await gatherCrawlDomainIntel(seedDomain, validUrls, pages, config);
 
   const output = {
     status: errors.length === 0 ? "completed" : "partial",
@@ -512,12 +569,25 @@ async function main() {
     errors,
     warnings,
     domainIntel,
-    stats: { total: urls.length, success: pages.length, failed: errors.length },
+    stats: { total: slicedUrlsLength, success: pages.length, failed: errors.length },
   };
   process.stdout.write(JSON.stringify(output));
 }
 
-main().catch((err) => {
-  process.stderr.write(`Fatal: ${err.message}\n`);
-  process.exit(1);
-});
+const isScriptExecution = () => {
+  if (!process.argv[1]) return false;
+  const script = process.argv[1].toLowerCase();
+  return (
+    script.endsWith("crawl.ts") ||
+    script.endsWith("crawl.js") ||
+    script.endsWith("index.ts") ||
+    script.endsWith("index.js")
+  );
+};
+
+if (isScriptExecution()) {
+  main().catch((err) => {
+    process.stderr.write(`Fatal: ${err.message}\n`);
+    process.exit(1);
+  });
+}

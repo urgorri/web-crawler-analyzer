@@ -11,7 +11,7 @@ const SENSITIVE_PATTERNS = [
     /authorization[:=][^\s"']*/gi, /api[_-]?key[=:][^\s&"']*/gi,
     /password[=:][^\s&"']*/gi, /session[_-]?id[=:][^\s&"']*/gi,
 ];
-function sanitize(str) {
+export function sanitize(str) {
     let r = str;
     for (const p of SENSITIVE_PATTERNS)
         r = r.replace(p, "[REDACTED]");
@@ -21,7 +21,7 @@ function sanitize(str) {
  * Check if a hostname is a private IP address or internal network resource.
  * Consistent with src/lib/ssrf-policy.ts
  */
-function isPrivateIp(hostname) {
+export function isPrivateIp(hostname) {
     const normalized = hostname.toLowerCase();
     // Check for localhost aliases
     if (["localhost", "0.0.0.0", "127.0.0.1", "[::1]"].includes(normalized)) {
@@ -63,7 +63,7 @@ const LIB_PATTERNS = [
     "shopify", "squarespace", "wix",
 ];
 const LIB_REGEXPS = LIB_PATTERNS.map((lib) => ({ lib, regex: new RegExp(lib, "i") }));
-function extractTechEvidence(page) {
+export function extractTechEvidence(page) {
     const evidence = [];
     const seen = new Set();
     const add = (s) => { if (!seen.has(s)) {
@@ -97,7 +97,7 @@ function extractTechEvidence(page) {
     return evidence;
 }
 // ─── Page extraction ──────────────────────────────────────────────────────────
-async function crawlPage(browser, url, config) {
+export async function crawlPage(browser, url, config) {
     const timeout = config.timeout ?? 30000;
     const waitNetwork = config.waitNetwork ?? 2000;
     const ctxOpts = { ignoreHTTPSErrors: true, javaScriptEnabled: true };
@@ -256,31 +256,20 @@ async function crawlPage(browser, url, config) {
         await context.close();
     }
 }
-// ─── Main ─────────────────────────────────────────────────────────────────────
-async function main() {
-    let input = "";
-    try {
-        input = fs.readFileSync(0, "utf-8");
-    }
-    catch (error) {
-        process.stderr.write("Error: Failed to read from stdin\n");
-        process.exit(1);
-    }
-    if (!input) {
-        process.stderr.write("Error: CRAWLER_INPUT from stdin is empty\n");
-        process.exit(1);
+// ─── Input Parsing & URL Validation ──────────────────────────────────────────
+export function parseInputRequest(rawInput) {
+    if (!rawInput || !rawInput.trim()) {
+        throw new Error("CRAWLER_INPUT from stdin is empty");
     }
     let body;
     try {
-        body = JSON.parse(input);
+        body = JSON.parse(rawInput);
     }
     catch {
-        process.stderr.write("Error: Invalid JSON in stdin\n");
-        process.exit(1);
+        throw new Error("Invalid JSON in stdin");
     }
     if (!body.urls || !Array.isArray(body.urls) || body.urls.length === 0) {
-        process.stderr.write("Error: urls array required\n");
-        process.exit(1);
+        throw new Error("urls array required");
     }
     const config = {
         timeout: body.config?.timeout ?? 30000,
@@ -289,11 +278,15 @@ async function main() {
         headless: body.config?.headless ?? true,
         waitNetwork: body.config?.waitNetwork ?? 2000,
         concurrency: Math.min(body.config?.concurrency ?? 2, 5),
+        portScanPorts: body.config?.portScanPorts,
     };
-    const urls = body.urls.slice(0, config.maxPages ?? 50);
+    return { body, config };
+}
+export function validateAndFilterUrls(rawUrls, config, scopeDomain) {
+    const urls = rawUrls.slice(0, config.maxPages ?? 50);
     const warnings = [];
     const validUrls = [];
-    const seedDomain = body.scopeDomain?.trim().toLowerCase() || getSeedDomain(urls[0]);
+    const seedDomain = scopeDomain?.trim().toLowerCase() || getSeedDomain(urls[0]);
     for (const url of urls) {
         try {
             const parsed = new URL(url);
@@ -320,59 +313,56 @@ async function main() {
             warnings.push(`Unparseable: ${sanitize(url)}`);
         }
     }
-    if (validUrls.length === 0) {
-        const result = { status: "partial", pages: [], errors: ["No valid URLs"], warnings, stats: { total: urls.length, success: 0, failed: urls.length } };
-        process.stdout.write(JSON.stringify(result));
-        return;
-    }
+    return { validUrls, warnings, seedDomain };
+}
+// ─── Batch Execution ─────────────────────────────────────────────────────────
+export async function executeCrawlBatch(browser, validUrls, config, crawlId) {
     const pages = [];
     const errors = [];
     const concurrency = config.concurrency ?? 2;
-    const browser = await chromium.launch({ headless: config.headless });
-    try {
-        for (let i = 0; i < validUrls.length; i += concurrency) {
-            const batch = validUrls.slice(i, i + concurrency);
-            const results = await Promise.allSettled(batch.map((url) => crawlPage(browser, url, config)));
-            for (let j = 0; j < results.length; j++) {
-                const result = results[j];
-                if (result.status === "fulfilled") {
-                    pages.push(result.value);
-                    /**
-                     * IPC Progress Reporting
-                     *
-                     * We use stderr to stream real-time progress updates to the parent process.
-                     * This decouples the crawler from the parent process's file system and
-                     * allows the parent to handle progress storage/broadcasting.
-                     *
-                     * (stdout is reserved exclusively for the final JSON result).
-                     */
-                    process.stderr.write(`PROGRESS_UPDATE:${JSON.stringify({
-                        crawlId: body.crawlId,
-                        url: result.value.url,
-                        title: result.value.title,
-                        pageCount: pages.length,
-                        errorCount: errors.length,
-                        status: 'running',
-                    })}\n`);
-                }
-                else {
-                    const msg = result.reason?.message ?? String(result.reason);
-                    errors.push(`${sanitize(batch[j])}: ${sanitize(msg)}`);
-                    process.stderr.write(`PROGRESS_UPDATE:${JSON.stringify({
-                        crawlId: body.crawlId,
-                        url: batch[j],
-                        error: msg,
-                        pageCount: pages.length,
-                        errorCount: errors.length,
-                        status: 'running',
-                    })}\n`);
-                }
+    for (let i = 0; i < validUrls.length; i += concurrency) {
+        const batch = validUrls.slice(i, i + concurrency);
+        const results = await Promise.allSettled(batch.map((url) => crawlPage(browser, url, config)));
+        for (let j = 0; j < results.length; j++) {
+            const result = results[j];
+            if (result.status === "fulfilled") {
+                pages.push(result.value);
+                /**
+                 * IPC Progress Reporting
+                 *
+                 * We use stderr to stream real-time progress updates to the parent process.
+                 * This decouples the crawler from the parent process's file system and
+                 * allows the parent to handle progress storage/broadcasting.
+                 *
+                 * (stdout is reserved exclusively for the final JSON result).
+                 */
+                process.stderr.write(`PROGRESS_UPDATE:${JSON.stringify({
+                    crawlId,
+                    url: result.value.url,
+                    title: result.value.title,
+                    pageCount: pages.length,
+                    errorCount: errors.length,
+                    status: 'running',
+                })}\n`);
+            }
+            else {
+                const msg = result.reason?.message ?? String(result.reason);
+                errors.push(`${sanitize(batch[j])}: ${sanitize(msg)}`);
+                process.stderr.write(`PROGRESS_UPDATE:${JSON.stringify({
+                    crawlId,
+                    url: batch[j],
+                    error: msg,
+                    pageCount: pages.length,
+                    errorCount: errors.length,
+                    status: 'running',
+                })}\n`);
             }
         }
     }
-    finally {
-        await browser.close();
-    }
+    return { pages, errors };
+}
+// ─── Domain Intelligence Gathering ───────────────────────────────────────────
+export async function gatherCrawlDomainIntel(seedDomain, validUrls, pages, config) {
     const observedDomain = getObservedDomain(pages.flatMap((page) => [page.final_url, page.url, page.canonical].filter(Boolean)), seedDomain);
     const domainIntelErrors = [];
     let dnsIntel = {
@@ -392,11 +382,6 @@ async function main() {
     try {
         dnsIntel = await resolveDns(seedDomain);
         resolvedIps = [...dnsIntel.a, ...dnsIntel.aaaa];
-        if (dnsIntel.a.length === 0 &&
-            dnsIntel.aaaa.length === 0 &&
-            dnsIntel.ns.length === 0 &&
-            dnsIntel.mx.length === 0) {
-        }
     }
     catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -433,7 +418,7 @@ async function main() {
         const message = error instanceof Error ? error.message : String(error);
         domainIntelErrors.push(message);
     }
-    const domainIntel = {
+    return {
         seedDomain,
         observedDomain,
         seedUrl: validUrls[0],
@@ -447,17 +432,77 @@ async function main() {
         warnings: [],
         errors: domainIntelErrors,
     };
+}
+// ─── Main Orchestrator ───────────────────────────────────────────────────────
+export function readStdinInput() {
+    return fs.readFileSync(0, "utf-8");
+}
+async function main() {
+    let input = "";
+    try {
+        input = readStdinInput();
+    }
+    catch (error) {
+        process.stderr.write("Error: Failed to read from stdin\n");
+        process.exit(1);
+    }
+    let parsedInput;
+    try {
+        parsedInput = parseInputRequest(input);
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        process.stderr.write(`Error: ${message}\n`);
+        process.exit(1);
+    }
+    const { body, config } = parsedInput;
+    const { validUrls, warnings, seedDomain } = validateAndFilterUrls(body.urls, config, body.scopeDomain);
+    const slicedUrlsLength = body.urls.slice(0, config.maxPages ?? 50).length;
+    if (validUrls.length === 0) {
+        const result = {
+            status: "partial",
+            pages: [],
+            errors: ["No valid URLs"],
+            warnings,
+            stats: { total: slicedUrlsLength, success: 0, failed: slicedUrlsLength },
+        };
+        process.stdout.write(JSON.stringify(result));
+        return;
+    }
+    const pages = [];
+    const errors = [];
+    const browser = await chromium.launch({ headless: config.headless });
+    try {
+        const crawlResult = await executeCrawlBatch(browser, validUrls, config, body.crawlId);
+        pages.push(...crawlResult.pages);
+        errors.push(...crawlResult.errors);
+    }
+    finally {
+        await browser.close();
+    }
+    const domainIntel = await gatherCrawlDomainIntel(seedDomain, validUrls, pages, config);
     const output = {
         status: errors.length === 0 ? "completed" : "partial",
         pages,
         errors,
         warnings,
         domainIntel,
-        stats: { total: urls.length, success: pages.length, failed: errors.length },
+        stats: { total: slicedUrlsLength, success: pages.length, failed: errors.length },
     };
     process.stdout.write(JSON.stringify(output));
 }
-main().catch((err) => {
-    process.stderr.write(`Fatal: ${err.message}\n`);
-    process.exit(1);
-});
+const isScriptExecution = () => {
+    if (!process.argv[1])
+        return false;
+    const script = process.argv[1].toLowerCase();
+    return (script.endsWith("crawl.ts") ||
+        script.endsWith("crawl.js") ||
+        script.endsWith("index.ts") ||
+        script.endsWith("index.js"));
+};
+if (isScriptExecution()) {
+    main().catch((err) => {
+        process.stderr.write(`Fatal: ${err.message}\n`);
+        process.exit(1);
+    });
+}

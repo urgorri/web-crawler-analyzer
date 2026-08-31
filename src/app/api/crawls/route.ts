@@ -1,57 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createCrawl, listCrawls, updateCrawl } from "@/lib/crawl-storage";
-import { spawn } from "child_process";
-import { access, writeFile, rm } from "fs/promises";
-import { createWriteStream } from "fs";
-import os from "os";
 import path from "path";
 import { validateUrls, SSRF_ERROR_MESSAGES, formatValidationError } from "@/lib/ssrf-policy";
 import { getRegistrableDomainFromUrl } from "@/lib/domain-utils";
-import type { DomainIntel } from "./types";
+import {
+  CrawlConfig,
+  ErrorStage,
+  RawCrawlResult,
+  logError,
+  resolveCrawlerCommand,
+  executeCrawlerProcess,
+  transformCrawlerResults,
+} from "@/lib/crawler/runner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-
-// ─── Types ─────────────────────────────────────────────────────────────────────
-
-interface CrawlConfig {
-  timeout?: number;
-  maxPages?: number;
-  concurrency?: number;
-  headless?: boolean;
-  waitForNetwork?: number;
-  userAgent?: string;
-  [key: string]: unknown;
-}
-
-interface RawCrawlerPage {
-  final_url?: string;
-  status_code?: number;
-  meta_description?: string;
-  robots_meta?: string;
-  meta_generator?: string;
-  visible_text?: string;
-  word_count?: number;
-  char_count?: number;
-  structured_data?: unknown;
-  body_classes?: string[];
-  html_classes?: string[];
-  tech_evidence?: string[];
-  load_time_ms?: number;
-  dom_content_loaded_ms?: number;
-  full_content_ready_ms?: number;
-  [key: string]: any;
-}
-
-// ─── Error Stages ──────────────────────────────────────────────────────────────
-// Stages for tracking where errors occur in the crawl lifecycle
-type ErrorStage = "spawn" | "poll" | "parse" | "persist";
-
-// ─── Terminal States ───────────────────────────────────────────────────────────
-// - completed: All pages crawled successfully (status from crawler = "completed")
-// - partial: Some pages crawled but not all (status = "partial" or success < total)
-// - failed: Crawl failed before completing any meaningful work (timeout, crash, etc.)
 
 // ─── GET /api/crawls ──────────────────────────────────────────────────────────
 
@@ -91,75 +54,126 @@ export async function GET() {
   }
 }
 
+// ─── Request Validation Helper ───────────────────────────────────────────────
+
+type ValidationResult =
+  | {
+      success: true;
+      data: {
+        urlsToCrawl: string[];
+        seedDomain: string;
+        name?: string;
+        config: CrawlConfig;
+        warnings: string[];
+      };
+    }
+  | {
+      success: false;
+      error: string;
+      status: number;
+    };
+
+function validateCrawlPayload(body: unknown): ValidationResult {
+  const { urls, config: rawConfig, name: rawName } = (body || {}) as {
+    urls?: string[];
+    config?: CrawlConfig;
+    name?: string;
+  };
+
+  const name = typeof rawName === "string" ? rawName.trim().slice(0, 120) : undefined;
+
+  if (!urls || !Array.isArray(urls) || urls.length === 0) {
+    return {
+      success: false,
+      error: SSRF_ERROR_MESSAGES.NO_VALID_URLS,
+      status: 400,
+    };
+  }
+
+  // Apply SSRF protection policy - same validation as mini-services/crawler-service/crawl.ts
+  const { validUrls, rejections } = validateUrls(urls);
+
+  // Log rejected URLs for debugging
+  if (rejections.length > 0) {
+    console.warn("[API] URLs rejected by SSRF policy:", rejections);
+  }
+
+  if (validUrls.length === 0) {
+    const errorMessage = formatValidationError(rejections);
+    return {
+      success: false,
+      error: errorMessage || SSRF_ERROR_MESSAGES.NO_VALID_URLS,
+      status: 400,
+    };
+  }
+
+  const seedDomain = getRegistrableDomainFromUrl(validUrls[0]);
+  if (!seedDomain) {
+    return {
+      success: false,
+      error: "Unable to determine the crawl domain from the first valid URL.",
+      status: 400,
+    };
+  }
+
+  const scopeRejections: Array<{ url: string; reason: string }> = [];
+  const urlsInScope: string[] = [];
+  for (const url of validUrls) {
+    const urlDomain = getRegistrableDomainFromUrl(url);
+    if (!urlDomain || urlDomain !== seedDomain) {
+      scopeRejections.push({
+        url,
+        reason: `Out of scope. This crawl only accepts URLs under ${seedDomain}.`,
+      });
+      continue;
+    }
+    urlsInScope.push(url);
+  }
+
+  if (urlsInScope.length === 0) {
+    const errorMessage = formatValidationError(scopeRejections);
+    return {
+      success: false,
+      error: errorMessage || `No URLs matched the crawl domain ${seedDomain}.`,
+      status: 400,
+    };
+  }
+
+  const config = rawConfig ?? {};
+  const maxPages = config.maxPages ?? 50;
+  const urlsToCrawl = urlsInScope.slice(0, maxPages);
+  const warnings = [
+    ...rejections.map((item) => `${item.url}: ${item.reason}`),
+    ...scopeRejections.map((item) => `${item.url}: ${item.reason}`),
+  ];
+
+  return {
+    success: true,
+    data: {
+      urlsToCrawl,
+      seedDomain,
+      name,
+      config,
+      warnings,
+    },
+  };
+}
+
 // ─── POST /api/crawls ─────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { urls, config: rawConfig, name: rawName } = body as { urls?: string[]; config?: CrawlConfig; name?: string };
+    const validation = validateCrawlPayload(body);
 
-    const name = typeof rawName === 'string' ? rawName.trim().slice(0, 120) : undefined;
-
-    if (!urls || !Array.isArray(urls) || urls.length === 0) {
+    if (!validation.success) {
       return NextResponse.json(
-        { error: SSRF_ERROR_MESSAGES.NO_VALID_URLS },
-        { status: 400 },
+        { error: validation.error },
+        { status: validation.status }
       );
     }
 
-    // Apply SSRF protection policy - same validation as mini-services/crawler-service/crawl.ts
-    const { validUrls, rejections } = validateUrls(urls);
-
-    // Log rejected URLs for debugging
-    if (rejections.length > 0) {
-      console.warn("[API] URLs rejected by SSRF policy:", rejections);
-    }
-
-    if (validUrls.length === 0) {
-      const errorMessage = formatValidationError(rejections);
-      return NextResponse.json(
-        { error: errorMessage || SSRF_ERROR_MESSAGES.NO_VALID_URLS },
-        { status: 400 },
-      );
-    }
-
-    const seedDomain = getRegistrableDomainFromUrl(validUrls[0]);
-    if (!seedDomain) {
-      return NextResponse.json(
-        { error: "Unable to determine the crawl domain from the first valid URL." },
-        { status: 400 },
-      );
-    }
-
-    const scopeRejections: Array<{ url: string; reason: string }> = [];
-    const urlsInScope: string[] = [];
-    for (const url of validUrls) {
-      const urlDomain = getRegistrableDomainFromUrl(url);
-      if (!urlDomain || urlDomain !== seedDomain) {
-        scopeRejections.push({
-          url,
-          reason: `Out of scope. This crawl only accepts URLs under ${seedDomain}.`,
-        });
-        continue;
-      }
-      urlsInScope.push(url);
-    }
-
-    if (urlsInScope.length === 0) {
-      const errorMessage = formatValidationError(scopeRejections);
-      return NextResponse.json(
-        { error: errorMessage || `No URLs matched the crawl domain ${seedDomain}.` },
-        { status: 400 },
-      );
-    }
-
-    const config = rawConfig ?? {};
-    const maxPages = config.maxPages ?? 50;
-    const urlsToCrawl = urlsInScope.slice(0, maxPages);
-    const warnings = [
-      ...rejections.map((item) => `${item.url}: ${item.reason}`),
-      ...scopeRejections.map((item) => `${item.url}: ${item.reason}`),
-    ];
+    const { urlsToCrawl, seedDomain, name, config, warnings } = validation.data;
 
     const crawl = await createCrawl({
       urls: urlsToCrawl,
@@ -212,20 +226,6 @@ export async function POST(request: NextRequest) {
 
 // ─── Background crawl ─────────────────────────────────────────────────────────
 
-/**
- * Helper to log errors with structured context
- */
-function logError(crawlId: string, stage: ErrorStage, message: string, error?: unknown) {
-  console.error(JSON.stringify({
-    event: "crawl_error",
-    crawlId,
-    stage,
-    message,
-    error: error instanceof Error ? error.message : String(error),
-    timestamp: new Date().toISOString(),
-  }));
-}
-
 async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, seedDomain: string) {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -247,130 +247,35 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
   }
 
   try {
-    const payload = JSON.stringify({
-      crawlId,
-      urls,
-      scopeDomain: seedDomain,
-      config: {
-        timeout: config.timeout ?? 30000,
-        maxPages: urls.length,
-        headless: config.headless ?? true,
-        waitNetwork: config.waitForNetwork ?? 2000,
-        concurrency: Math.min(config.concurrency ?? 2, 5),
-        ...(config.userAgent ? { userAgent: config.userAgent } : {}),
-      },
-    });
-
     const crawlerServiceDir = path.join(process.cwd(), "mini-services/crawler-service");
-    const crawlBuildScript = path.join(crawlerServiceDir, "dist/crawl.js");
-    const crawlTsScript = path.join(crawlerServiceDir, "crawl.ts");
-    const tmpDir = os.tmpdir();
-    const stdoutLogFile = path.join(tmpDir, `crawl-${crawlId}-stdout.log`);
-    const stderrLogFile = path.join(tmpDir, `crawl-${crawlId}-stderr.log`);
 
-    let command = process.execPath;
-    let args = [crawlBuildScript];
-    const isProduction = process.env.NODE_ENV === "production";
-    const allowTsFallback = process.env.ALLOW_TS_CRAWLER_FALLBACK === "true";
+    let command: string;
+    let args: string[];
 
     try {
-      await access(crawlBuildScript);
-    } catch {
-      if (isProduction || !allowTsFallback) {
-        const message =
-          "Infrastructure error: missing required crawler build artifact at mini-services/crawler-service/dist/crawl.js. Run `npm --prefix mini-services/crawler-service run build` before starting Next.";
-        logError(crawlId, "spawn", message);
-        await updateCrawlError("spawn", message, "failed");
-        return;
+      const resolution = await resolveCrawlerCommand(crawlerServiceDir);
+      command = resolution.command;
+      args = resolution.args;
+      if (resolution.warning) {
+        warnings.push(resolution.warning);
       }
-
-      command = path.join(process.cwd(), "node_modules", ".bin", "tsx");
-      args = [crawlTsScript];
-      warnings.push(
-        "Using development TypeScript fallback for crawler execution (ALLOW_TS_CRAWLER_FALLBACK=true).",
-      );
+    } catch (commandError) {
+      const message = commandError instanceof Error ? commandError.message : String(commandError);
+      logError(crawlId, "spawn", message, commandError);
+      await updateCrawlError("spawn", message, "failed");
+      return;
     }
 
-    // Stage: spawn - launching the crawler subprocess
-    const child = spawn(command, args, {
-      cwd: crawlerServiceDir,
-      detached: true,
-      env: {
-        PATH: process.env.PATH,
-        NODE_ENV: process.env.NODE_ENV,
-        PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH,
-        ALLOW_PRIVATE_TARGETS: process.env.ALLOW_PRIVATE_TARGETS,
-      },
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-
-    if (child.stdin) {
-      child.stdin.write(payload);
-      child.stdin.end();
-    }
-
-    const stdoutLogStream = createWriteStream(stdoutLogFile, { flags: "a" });
-    const stderrLogStream = createWriteStream(stderrLogFile, { flags: "a" });
-
-    let stdoutBuffer = "";
-    let stderrBuffer = "";
-    let stderrLineBuffer = "";
-
-    child.stdout?.on("data", (chunk) => {
-      const text = chunk.toString();
-      stdoutBuffer += text;
-      stdoutLogStream.write(chunk);
-    });
-
-    child.stderr?.on("data", (chunk) => {
-      const text = chunk.toString();
-      stderrBuffer += text;
-      stderrLogStream.write(chunk);
-
-      // Handle progress updates by buffering lines
-      stderrLineBuffer += text;
-      let lineEndIndex;
-      while ((lineEndIndex = stderrLineBuffer.indexOf("\n")) !== -1) {
-        const line = stderrLineBuffer.substring(0, lineEndIndex).trim();
-        stderrLineBuffer = stderrLineBuffer.substring(lineEndIndex + 1);
-
-        if (line.startsWith("PROGRESS_UPDATE:")) {
-          try {
-            const progressData = JSON.parse(line.substring("PROGRESS_UPDATE:".length));
-            const progressFile = path.join(process.cwd(), "output", `${crawlId}.progress.json`);
-            writeFile(progressFile, JSON.stringify({
-              ...progressData,
-              updatedAt: new Date().toISOString()
-            })).catch(err => console.error("[API] Failed to write progress file:", err));
-          } catch (e) {
-            // Ignore parse errors for progress
-          }
-        }
-      }
-
-      console.error(`[API] Crawl ${crawlId} stderr:`, text.trim());
-    });
-
-    const timeoutMs = Math.max((config.timeout ?? 30000) * urls.length + 60000, 120000);
-
-    // Stage: poll - waiting for subprocess to complete
-    let exitCode: number;
+    let processResult;
     try {
-      exitCode = await new Promise<number>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          child.kill("SIGTERM");
-          reject(new Error("Crawl subprocess timed out"));
-        }, timeoutMs);
-
-        child.on("error", (err) => {
-          clearTimeout(timeout);
-          reject(err);
-        });
-
-        child.on("close", (code) => {
-          clearTimeout(timeout);
-          resolve(code ?? 1);
-        });
+      processResult = await executeCrawlerProcess({
+        crawlId,
+        urls,
+        seedDomain,
+        config,
+        command,
+        args,
+        crawlerServiceDir,
       });
     } catch (pollError) {
       const message = pollError instanceof Error ? pollError.message : "Unknown polling error";
@@ -379,12 +284,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
       return;
     }
 
-    stdoutLogStream.end();
-    stderrLogStream.end();
-
-    // Cleanup progress file
-    const progressFile = path.join(process.cwd(), "output", `${crawlId}.progress.json`);
-    rm(progressFile).catch(() => {});
+    const { exitCode, stdoutBuffer, stderrBuffer } = processResult;
 
     if (exitCode !== 0) {
       const message = `Crawler exited with code ${exitCode}. ${stderrBuffer.substring(0, 500)}`;
@@ -393,16 +293,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
       return;
     }
 
-    // Stage: parse - parsing JSON output from crawler
-    let crawlResult: {
-      status: string;
-      pages: Array<RawCrawlerPage>;
-      errors: string[];
-      warnings: string[];
-      domainIntel?: DomainIntel | null;
-      stats: { total: number; success: number; failed: number };
-    };
-
+    let crawlResult: RawCrawlResult;
     try {
       crawlResult = JSON.parse(stdoutBuffer);
     } catch (parseError) {
@@ -412,77 +303,15 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
       return;
     }
 
-    // Stage: persist - storing pages in JSON output
-
     const allErrors = [...errors, ...(crawlResult.errors || [])];
     const allWarnings = [...warnings, ...(crawlResult.warnings || [])];
 
-    // Determine terminal status based on results
     let terminalStatus: "completed" | "partial" = "completed";
     if (crawlResult.status === "partial" || crawlResult.stats.success < crawlResult.stats.total) {
       terminalStatus = "partial";
     }
 
-    // Transform snake_case from crawler to camelCase for frontend and remove redundant fields
-    const transformedPages = crawlResult.pages.map((page: RawCrawlerPage) => {
-      const {
-        final_url,
-        status_code,
-        meta_description,
-        robots_meta,
-        meta_generator,
-        visible_text,
-        word_count,
-        char_count,
-        structured_data,
-        body_classes,
-        html_classes,
-        tech_evidence,
-        load_time_ms,
-        dom_content_loaded_ms,
-        full_content_ready_ms,
-        ...rest
-      } = page;
-
-      return {
-        ...rest,
-        finalUrl: final_url,
-        statusCode: status_code,
-        metaDescription: meta_description,
-        robotsMeta: robots_meta,
-        metaGenerator: meta_generator,
-        visibleText: visible_text,
-        wordCount: word_count,
-        charCount: char_count,
-        structuredData: structured_data,
-        bodyClasses: body_classes,
-        htmlClasses: html_classes,
-        techEvidence: tech_evidence,
-        loadTimeMs: load_time_ms,
-        domContentLoadedMs: dom_content_loaded_ms,
-        fullContentReadyMs: full_content_ready_ms,
-      };
-    });
-
-    // Calculate aggregate stats
-    let sumLoadTimes = 0;
-    const loadTimes = transformedPages.reduce((acc: number[], p) => {
-      if (typeof p.loadTimeMs === 'number') {
-        acc.push(p.loadTimeMs);
-        sumLoadTimes += p.loadTimeMs;
-      }
-      return acc;
-    }, []);
-
-    let avgLoadTimeMs, minLoadTimeMs, maxLoadTimeMs, p95LoadTimeMs;
-
-    if (loadTimes.length > 0) {
-      loadTimes.sort((a, b) => a - b);
-      avgLoadTimeMs = Math.round(sumLoadTimes / loadTimes.length);
-      minLoadTimeMs = loadTimes[0];
-      maxLoadTimeMs = loadTimes[loadTimes.length - 1];
-      p95LoadTimeMs = loadTimes[Math.floor(loadTimes.length * 0.95)];
-    }
+    const { pages: transformedPages, stats } = transformCrawlerResults(crawlResult.pages || []);
 
     try {
       await updateCrawl(crawlId, {
@@ -494,22 +323,19 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
         completedAt: new Date().toISOString(),
         pages: transformedPages,
         domainIntel: crawlResult.domainIntel ?? null,
-        avgLoadTimeMs,
-        minLoadTimeMs,
-        maxLoadTimeMs,
-        p95LoadTimeMs,
+        avgLoadTimeMs: stats.avgLoadTimeMs,
+        minLoadTimeMs: stats.minLoadTimeMs,
+        maxLoadTimeMs: stats.maxLoadTimeMs,
+        p95LoadTimeMs: stats.p95LoadTimeMs,
       });
     } catch (writeErr) {
       logError(crawlId, "persist", "Failed to update crawl final status", writeErr);
-      // Best effort: already have partial data, mark as partial
       await updateCrawlError("persist", "Failed to finalize crawl record", "partial");
     }
-
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     logError(crawlId, "spawn", message, error);
-    
-    // Wrap updateCrawl in try/catch to prevent unhandled rejections
+
     try {
       await updateCrawl(crawlId, {
         status: "failed",
