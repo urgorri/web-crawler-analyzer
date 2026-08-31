@@ -575,14 +575,18 @@ function TechTab({ crawl }: { crawl: CrawlDetail }) {
 // ─── Structured Data Tab ─────────────────────────────────────────────────────
 
 function StructuredTab({ crawl }: { crawl: CrawlDetail }) {
-  const pages = crawl.pages ?? [];
-  const items: { page: string; data: unknown[] }[] = [];
+  const items = React.useMemo(() => {
+    const pages = crawl.pages ?? [];
+    const result: { page: string; data: unknown[] }[] = [];
 
-  for (const page of pages) {
-    if (page.structuredData && page.structuredData.length > 0) {
-      items.push({ page: page.url, data: page.structuredData });
+    for (const page of pages) {
+      if (page.structuredData && page.structuredData.length > 0) {
+        result.push({ page: page.url, data: page.structuredData });
+      }
     }
-  }
+
+    return result;
+  }, [crawl.pages]);
 
   if (items.length === 0) {
     return (
@@ -792,20 +796,23 @@ function DomainTab({ crawl }: { crawl: CrawlDetail }) {
 
 function NetworkTab({ crawl }: { crawl: CrawlDetail }) {
   const pages = crawl.pages ?? [];
-  const allRequests: Array<{
-    page: string;
-    url: string;
-    method: string;
-    status?: number;
-    resourceType?: string;
-    size?: number;
-  }> = [];
+  const allRequests = React.useMemo(() => {
+    const requests: Array<{
+      page: string;
+      url: string;
+      method: string;
+      status?: number;
+      resourceType?: string;
+      size?: number;
+    }> = [];
 
-  for (const page of pages) {
-    for (const req of page.network ?? []) {
-      allRequests.push({ page: page.url, ...req });
+    for (const page of pages) {
+      for (const req of page.network ?? []) {
+        requests.push({ page: page.url, ...req });
+      }
     }
-  }
+    return requests;
+  }, [pages]);
 
   if (allRequests.length === 0) {
     return (
