@@ -1,40 +1,27 @@
-import { describe, it } from "node:test";
-import assert from "node:assert";
+import { describe, it, expect } from "vitest";
 import {
   parseInputRequest,
   validateAndFilterUrls,
   sanitize,
   isPrivateIp,
   type CrawlConfig,
-} from "../crawl.js";
+} from "../crawl";
 
 describe("crawl helper functions", () => {
   describe("parseInputRequest", () => {
     it("should throw error when input is empty", () => {
-      assert.throws(() => parseInputRequest(""), {
-        message: "CRAWLER_INPUT from stdin is empty",
-      });
-      assert.throws(() => parseInputRequest("   "), {
-        message: "CRAWLER_INPUT from stdin is empty",
-      });
+      expect(() => parseInputRequest("")).toThrow("CRAWLER_INPUT from stdin is empty");
+      expect(() => parseInputRequest("   ")).toThrow("CRAWLER_INPUT from stdin is empty");
     });
 
     it("should throw error when JSON is invalid", () => {
-      assert.throws(() => parseInputRequest("invalid json"), {
-        message: "Invalid JSON in stdin",
-      });
+      expect(() => parseInputRequest("invalid json")).toThrow("Invalid JSON in stdin");
     });
 
     it("should throw error when urls array is missing or empty", () => {
-      assert.throws(() => parseInputRequest(JSON.stringify({})), {
-        message: "urls array required",
-      });
-      assert.throws(() => parseInputRequest(JSON.stringify({ urls: [] })), {
-        message: "urls array required",
-      });
-      assert.throws(() => parseInputRequest(JSON.stringify({ urls: "not-an-array" })), {
-        message: "urls array required",
-      });
+      expect(() => parseInputRequest(JSON.stringify({}))).toThrow("urls array required");
+      expect(() => parseInputRequest(JSON.stringify({ urls: [] }))).toThrow("urls array required");
+      expect(() => parseInputRequest(JSON.stringify({ urls: "not-an-array" }))).toThrow("urls array required");
     });
 
     it("should parse valid request and apply default config values", () => {
@@ -44,13 +31,13 @@ describe("crawl helper functions", () => {
       });
       const { body, config } = parseInputRequest(input);
 
-      assert.strictEqual(body.crawlId, "test-crawl-123");
-      assert.deepStrictEqual(body.urls, ["https://example.com"]);
-      assert.strictEqual(config.timeout, 30000);
-      assert.strictEqual(config.maxPages, 50);
-      assert.strictEqual(config.headless, true);
-      assert.strictEqual(config.waitNetwork, 2000);
-      assert.strictEqual(config.concurrency, 2);
+      expect(body.crawlId).toBe("test-crawl-123");
+      expect(body.urls).toEqual(["https://example.com"]);
+      expect(config.timeout).toBe(30000);
+      expect(config.maxPages).toBe(50);
+      expect(config.headless).toBe(true);
+      expect(config.waitNetwork).toBe(2000);
+      expect(config.concurrency).toBe(2);
     });
 
     it("should respect custom config and clamp concurrency to 5", () => {
@@ -65,10 +52,10 @@ describe("crawl helper functions", () => {
       });
       const { config } = parseInputRequest(input);
 
-      assert.strictEqual(config.timeout, 10000);
-      assert.strictEqual(config.maxPages, 10);
-      assert.strictEqual(config.concurrency, 5);
-      assert.strictEqual(config.headless, false);
+      expect(config.timeout).toBe(10000);
+      expect(config.maxPages).toBe(10);
+      expect(config.concurrency).toBe(5);
+      expect(config.headless).toBe(false);
     });
   });
 
@@ -85,9 +72,9 @@ describe("crawl helper functions", () => {
       ];
       const { validUrls, warnings, seedDomain } = validateAndFilterUrls(urls, defaultConfig);
 
-      assert.strictEqual(seedDomain, "example.com");
-      assert.deepStrictEqual(validUrls, urls);
-      assert.strictEqual(warnings.length, 0);
+      expect(seedDomain).toBe("example.com");
+      expect(validUrls).toEqual(urls);
+      expect(warnings.length).toBe(0);
     });
 
     it("should filter out invalid schemes and record warnings", () => {
@@ -97,9 +84,9 @@ describe("crawl helper functions", () => {
       ];
       const { validUrls, warnings } = validateAndFilterUrls(urls, defaultConfig);
 
-      assert.deepStrictEqual(validUrls, ["https://example.com/page1"]);
-      assert.strictEqual(warnings.length, 1);
-      assert.ok(warnings[0].includes("Invalid scheme"));
+      expect(validUrls).toEqual(["https://example.com/page1"]);
+      expect(warnings.length).toBe(1);
+      expect(warnings[0]).toContain("Invalid scheme");
     });
 
     it("should filter out private IP addresses when private targets are disallowed", () => {
@@ -110,10 +97,10 @@ describe("crawl helper functions", () => {
       ];
       const { validUrls, warnings } = validateAndFilterUrls(urls, defaultConfig);
 
-      assert.deepStrictEqual(validUrls, ["https://example.com/page1"]);
-      assert.strictEqual(warnings.length, 2);
-      assert.ok(warnings[0].includes("Blocked (private network"));
-      assert.ok(warnings[1].includes("Blocked (private network"));
+      expect(validUrls).toEqual(["https://example.com/page1"]);
+      expect(warnings.length).toBe(2);
+      expect(warnings[0]).toContain("Blocked (private network");
+      expect(warnings[1]).toContain("Blocked (private network");
     });
 
     it("should filter out out-of-scope domain URLs", () => {
@@ -123,9 +110,9 @@ describe("crawl helper functions", () => {
       ];
       const { validUrls, warnings } = validateAndFilterUrls(urls, defaultConfig);
 
-      assert.deepStrictEqual(validUrls, ["https://example.com/page1"]);
-      assert.strictEqual(warnings.length, 1);
-      assert.ok(warnings[0].includes("Out of scope"));
+      expect(validUrls).toEqual(["https://example.com/page1"]);
+      expect(warnings.length).toBe(1);
+      expect(warnings[0]).toContain("Out of scope");
     });
 
     it("should respect explicit scopeDomain argument", () => {
@@ -135,8 +122,8 @@ describe("crawl helper functions", () => {
       ];
       const { validUrls, seedDomain } = validateAndFilterUrls(urls, defaultConfig, "example.com");
 
-      assert.strictEqual(seedDomain, "example.com");
-      assert.deepStrictEqual(validUrls, ["https://sub.example.com/page1"]);
+      expect(seedDomain).toBe("example.com");
+      expect(validUrls).toEqual(["https://sub.example.com/page1"]);
     });
 
     it("should limit maximum URLs processed to maxPages config", () => {
@@ -144,23 +131,23 @@ describe("crawl helper functions", () => {
       const config: CrawlConfig = { maxPages: 3 };
       const { validUrls } = validateAndFilterUrls(urls, config);
 
-      assert.strictEqual(validUrls.length, 3);
+      expect(validUrls.length).toBe(3);
     });
   });
 
   describe("sanitize & isPrivateIp", () => {
     it("should sanitize sensitive patterns", () => {
-      assert.strictEqual(sanitize("token=12345secret"), "[REDACTED]");
-      assert.strictEqual(sanitize("api_key=mykey123"), "[REDACTED]");
+      expect(sanitize("token=12345secret")).toBe("[REDACTED]");
+      expect(sanitize("api_key=mykey123")).toBe("[REDACTED]");
     });
 
     it("should correctly identify private IPs and localhost", () => {
-      assert.strictEqual(isPrivateIp("localhost"), true);
-      assert.strictEqual(isPrivateIp("127.0.0.1"), true);
-      assert.strictEqual(isPrivateIp("10.0.0.1"), true);
-      assert.strictEqual(isPrivateIp("192.168.1.1"), true);
-      assert.strictEqual(isPrivateIp("example.com"), false);
-      assert.strictEqual(isPrivateIp("93.184.216.34"), false);
+      expect(isPrivateIp("localhost")).toBe(true);
+      expect(isPrivateIp("127.0.0.1")).toBe(true);
+      expect(isPrivateIp("10.0.0.1")).toBe(true);
+      expect(isPrivateIp("192.168.1.1")).toBe(true);
+      expect(isPrivateIp("example.com")).toBe(false);
+      expect(isPrivateIp("93.184.216.34")).toBe(false);
     });
   });
 });

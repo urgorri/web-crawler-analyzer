@@ -52,4 +52,5 @@ server.log
 # Skills directory
 /skills/
 
-output/
+output/*
+!output/.gitkeep

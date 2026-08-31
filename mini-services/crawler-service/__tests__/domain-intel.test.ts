@@ -1,49 +1,46 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
-import { getSeedDomain, getObservedDomain } from '../domain-intel.ts';
+import { describe, it, expect } from 'vitest';
+import { getSeedDomain, getObservedDomain } from '../domain-intel';
 
 describe('getSeedDomain', () => {
   it('extracts the domain from a simple URL', () => {
-    assert.strictEqual(getSeedDomain('https://example.com'), 'example.com');
+    expect(getSeedDomain('https://example.com')).toBe('example.com');
   });
 
   it('extracts the domain from a URL with a path and query', () => {
-    assert.strictEqual(getSeedDomain('https://example.com/path?query=1'), 'example.com');
+    expect(getSeedDomain('https://example.com/path?query=1')).toBe('example.com');
   });
 
   it('extracts the registrable domain from a subdomain', () => {
-    assert.strictEqual(getSeedDomain('https://sub.example.com'), 'example.com');
+    expect(getSeedDomain('https://sub.example.com')).toBe('example.com');
   });
 
   it('extracts the registrable domain from a nested subdomain', () => {
-    assert.strictEqual(getSeedDomain('https://a.b.c.example.com'), 'example.com');
+    expect(getSeedDomain('https://a.b.c.example.com')).toBe('example.com');
   });
 
   it('handles country code TLDs', () => {
-    assert.strictEqual(getSeedDomain('https://example.co.uk'), 'example.co.uk');
+    expect(getSeedDomain('https://example.co.uk')).toBe('example.co.uk');
   });
 
   it('handles subdomains on country code TLDs', () => {
-    assert.strictEqual(getSeedDomain('https://sub.example.co.uk'), 'example.co.uk');
+    expect(getSeedDomain('https://sub.example.co.uk')).toBe('example.co.uk');
   });
 
   it('handles http protocol', () => {
-    assert.strictEqual(getSeedDomain('http://example.com'), 'example.com');
+    expect(getSeedDomain('http://example.com')).toBe('example.com');
   });
 
   it('handles ports in the URL', () => {
-    assert.strictEqual(getSeedDomain('https://example.com:8080'), 'example.com');
+    expect(getSeedDomain('https://example.com:8080')).toBe('example.com');
   });
 
   it('throws an error for invalid URLs', () => {
-    assert.throws(() => getSeedDomain('not-a-url'), {
-      name: 'TypeError'
-    });
+    expect(() => getSeedDomain('not-a-url')).toThrow();
   });
 
   it('handles localhost or internal ips', () => {
-    assert.strictEqual(getSeedDomain('http://localhost:3000'), 'localhost');
-    assert.strictEqual(getSeedDomain('http://127.0.0.1:8080'), '127.0.0.1');
+    expect(getSeedDomain('http://localhost:3000')).toBe('localhost');
+    expect(getSeedDomain('http://127.0.0.1:8080')).toBe('127.0.0.1');
   });
 });
 
@@ -54,7 +51,7 @@ describe('getObservedDomain', () => {
       'https://example.com/page2',
       'https://other.com/page1'
     ];
-    assert.strictEqual(getObservedDomain(urls, 'fallback.com'), 'example.com');
+    expect(getObservedDomain(urls, 'fallback.com')).toBe('example.com');
   });
 
   it('handles ties in domain frequency by returning the first winner', () => {
@@ -65,7 +62,7 @@ describe('getObservedDomain', () => {
       'https://other.com/page2'
     ];
     // other.com appears first in the iteration order, so it wins the tie if scores are strictly > max
-    assert.strictEqual(getObservedDomain(urls, 'fallback.com'), 'other.com');
+    expect(getObservedDomain(urls, 'fallback.com')).toBe('other.com');
   });
 
   it('ignores malformed URLs', () => {
@@ -75,15 +72,15 @@ describe('getObservedDomain', () => {
       'invalid-url',
       'https://example.com/page2'
     ];
-    assert.strictEqual(getObservedDomain(urls, 'fallback.com'), 'example.com');
+    expect(getObservedDomain(urls, 'fallback.com')).toBe('example.com');
   });
 
   it('falls back to the fallback value when all URLs are invalid', () => {
     const urls = ['not-a-url', 'invalid-url'];
-    assert.strictEqual(getObservedDomain(urls, 'fallback.com'), 'fallback.com');
+    expect(getObservedDomain(urls, 'fallback.com')).toBe('fallback.com');
   });
 
   it('falls back to the fallback value when the urls array is empty', () => {
-    assert.strictEqual(getObservedDomain([], 'fallback.com'), 'fallback.com');
+    expect(getObservedDomain([], 'fallback.com')).toBe('fallback.com');
   });
 });

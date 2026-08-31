@@ -20,7 +20,7 @@ describe('crawl-storage', () => {
 
   describe('createCrawl', () => {
     it('creates a new crawl record with the provided name', async () => {
-      vi.spyOn(crypto, 'randomUUID').mockReturnValue('test-uuid-1234');
+      vi.spyOn(crypto, 'randomUUID').mockReturnValue('12345678-1234-1234-1234-123456781234');
       const mkdirMock = vi.mocked(fsPromises.mkdir).mockResolvedValue(undefined);
       const writeFileMock = vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
 
@@ -32,7 +32,7 @@ describe('crawl-storage', () => {
 
       const record = await createCrawl(input);
 
-      expect(record.id).toBe('test-uuid-1234');
+      expect(record.id).toBe('12345678-1234-1234-1234-123456781234');
       expect(record.name).toBe('My Custom Crawl');
       expect(record.status).toBe('running');
       expect(record.seedCount).toBe(1);
@@ -41,14 +41,14 @@ describe('crawl-storage', () => {
 
       expect(mkdirMock).toHaveBeenCalledWith(path.join(process.cwd(), 'output'), { recursive: true });
       expect(writeFileMock).toHaveBeenCalledWith(
-        path.join(process.cwd(), 'output', 'test-uuid-1234.json'),
+        path.join(process.cwd(), 'output', '12345678-1234-1234-1234-123456781234.json'),
         JSON.stringify(record, null, 2),
         'utf8'
       );
     });
 
     it('infers a single-domain name correctly from URL when name is missing', async () => {
-      vi.spyOn(crypto, 'randomUUID').mockReturnValue('test-uuid-5678');
+      vi.spyOn(crypto, 'randomUUID').mockReturnValue('12345678-1234-1234-1234-123456785678');
       vi.mocked(fsPromises.mkdir).mockResolvedValue(undefined);
       vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
 
@@ -63,7 +63,7 @@ describe('crawl-storage', () => {
     });
 
     it('infers a multi-domain name correctly from multiple URLs', async () => {
-      vi.spyOn(crypto, 'randomUUID').mockReturnValue('test-uuid-9012');
+      vi.spyOn(crypto, 'randomUUID').mockReturnValue('12345678-1234-1234-1234-123456789012');
       vi.mocked(fsPromises.mkdir).mockResolvedValue(undefined);
       vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
 
