@@ -518,7 +518,7 @@ async function main() {
   let input = "";
   try {
     input = readStdinInput();
-  } catch (error) {
+  } catch (_error) {
     process.stderr.write("Error: Failed to read from stdin\n");
     process.exit(1);
   }

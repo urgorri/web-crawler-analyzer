@@ -88,8 +88,10 @@ web-crawler-analyzer/
 │   │   ├── crawler/         # Feature UI views (Dashboard, NewCrawl, CrawlDetail, PageDetail)
 │   │   └── ui/              # Reusable UI primitives (Radix / shadcn)
 │   └── lib/                 # Core utilities and business logic
+│       ├── analyzers/       # Pluggable analysis modules (SiteAnalyzer registry)
 │       ├── crawler/         # Subprocess runner and execution helpers
-│       ├── crawl-storage.ts # JSON filesystem storage & indexing
+│       ├── storage/         # Storage repository providers (CrawlStorageProvider)
+│       ├── crawl-storage.ts # Unified storage facade
 │       ├── crawl-json-normalizer.ts # Entity deduplication & hash compression
 │       ├── ssrf-policy.ts   # Centralized SSRF validation rules
 │       ├── domain-utils.ts  # TLD and registrable domain parsing
@@ -290,3 +292,51 @@ When Next.js initiates a crawl:
 | `npm test` | Executes all 15 Vitest test suites (134+ unit and integration tests) |
 | `npm run test:watch` | Runs Vitest in interactive watch mode |
 | `npx playwright install chromium` | Installs Playwright Chromium browser binaries |
+
+---
+
+## 10. Extending WebScope (Analyzers & Storage Providers)
+
+### 10.1 Creating a Pluggable Analyzer
+WebScope implements the **Orchestration Shell Pattern**: the Playwright engine fetches DOM and network data, while specialized analysis passes are executed through the `SiteAnalyzer` interface.
+
+To create an analyzer:
+```typescript
+import type { AnalysisContext, SiteAnalyzer } from '@/lib/analyzers/types';
+
+export class MyCustomAnalyzer implements SiteAnalyzer<MyResultType> {
+  public readonly id = 'my-analyzer';
+  public readonly name = 'My Custom Analyzer';
+  public readonly category = 'seo' as const; // 'seo' | 'tech' | 'security' | 'network' | 'performance'
+  public readonly description = 'Description of what this analyzer checks';
+
+  public async isAvailable(): Promise<boolean> {
+    return true; // Check if required API keys, binaries, or networks are available
+  }
+
+  public async run(context: AnalysisContext): Promise<MyResultType> {
+    // context contains: targetUrl, finalUrl, domain, statusCode, html, headers, scripts, stylesheets, networkRequests
+    return { myData: true };
+  }
+}
+```
+
+Register it in `src/lib/analyzers/index.ts`:
+```typescript
+defaultAnalyzerRegistry.register(new MyCustomAnalyzer());
+```
+
+### 10.2 Implementing a Custom Storage Backend
+WebScope abstracts crawl record persistence behind `CrawlStorageProvider`:
+```typescript
+export interface CrawlStorageProvider {
+  createCrawl(input: CreateCrawlInput): Promise<CrawlRecord>;
+  getCrawl(id: string): Promise<CrawlRecord | null>;
+  listCrawls(): Promise<CrawlSummary[]>;
+  updateCrawl(id: string, updates: Partial<CrawlRecord>): Promise<CrawlRecord | null>;
+  deleteCrawl(id: string): Promise<boolean>;
+  getCrawlSummary(id: string): Promise<CrawlSummary | null>;
+}
+```
+The default implementation is `FileSystemStorageProvider` (`output/*.json`). To connect SQLite, PostgreSQL, Prisma, or S3, implement this interface and configure it via `setStorageProvider(myCustomProvider)` in `src/lib/storage/index.ts`.
+

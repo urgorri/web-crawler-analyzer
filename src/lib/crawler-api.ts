@@ -2,6 +2,14 @@ import type { DomainIntel } from "@/app/api/crawls/types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+export interface CrawlModulesConfig {
+  seo?: boolean;
+  tech?: boolean;
+  securityHeaders?: boolean;
+  domainIntel?: boolean;
+  [key: string]: boolean | undefined;
+}
+
 export interface CrawlConfig {
   timeout?: number;
   maxPages?: number;
@@ -9,6 +17,7 @@ export interface CrawlConfig {
   headless?: boolean;
   waitForNetwork?: number;
   userAgent?: string;
+  modules?: CrawlModulesConfig;
 }
 
 export interface CrawlSummary {
@@ -87,6 +96,7 @@ export interface CrawlDetail extends CrawlSummary {
   errors: string[] | null;
   lastErrorStage?: string | null;
   pages: PageData[];
+  analysisResults?: Record<string, unknown> | null;
 }
 
 // ─── API helpers ─────────────────────────────────────────────────────────────

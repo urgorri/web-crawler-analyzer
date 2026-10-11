@@ -501,4 +501,43 @@ describe('CrawlDetailView', () => {
 
     expect(useCrawlerStore.getState().currentView).toBe('dashboard');
   });
+
+  it('renders Security tab content when Security tab is clicked', async () => {
+    const user = userEvent.setup();
+    useCrawlerStore.setState({ selectedCrawlId: 'crawl-123' });
+    vi.mocked(getCrawl).mockResolvedValue({
+      ...mockCrawlData,
+      analysisResults: {
+        'security-headers': {
+          data: {
+            score: 85,
+            grade: 'A',
+            summary: { passed: 4, warned: 1, failed: 1 },
+            audits: [
+              {
+                header: 'Content-Security-Policy',
+                status: 'pass',
+                importance: 'critical',
+                description: 'Valid CSP',
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Crawl')).toBeInTheDocument();
+    });
+
+    const securityTab = screen.getByRole('tab', { name: /security/i });
+    await user.click(securityTab);
+
+    await waitFor(() => {
+      expect(screen.getByText('HTTP Security Header Audits')).toBeInTheDocument();
+      expect(screen.getByText('Content-Security-Policy')).toBeInTheDocument();
+    });
+  });
 });

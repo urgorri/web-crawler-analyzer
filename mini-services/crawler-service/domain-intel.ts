@@ -63,7 +63,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): 
   });
 }
 
-function toStringArray(value: unknown): string[] {
+function _toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.map((item) => String(item)).filter(Boolean);
 }
@@ -167,7 +167,10 @@ export async function lookupRdapIp(ipAddress: string | null, timeoutMs = 12_000)
   }
 }
 
-export async function runTraceroute(target: string, timeoutMs = 30_000): Promise<TraceHop[]> {
+export async function runTraceroute(target: string, timeoutMs = 10_000): Promise<TraceHop[]> {
+  if (process.env.DISABLE_TRACEROUTE === 'true') {
+    return [];
+  }
   try {
     const tracer = new Traceroute();
     const hops: TraceHop[] = [];
@@ -208,7 +211,7 @@ export async function scanPorts(
   ports: number[],
   timeoutMs = 800,
 ): Promise<PortIntel[]> {
-  if (!targetIp || ports.length === 0) return [];
+  if (!targetIp || ports.length === 0 || process.env.DISABLE_PORT_SCAN === 'true') return [];
   const portscannerModule: any = await import("portscanner");
   const portscanner = portscannerModule.default ?? portscannerModule;
   const grabModule: any = await import("grab.js");

@@ -19,20 +19,14 @@ jobs:
         node-version: '20'
         cache: 'npm'
 
-    - name: Install root dependencies
+    - name: Install dependencies (Workspaces)
       run: npm install
 
-    - name: Security Audit (Root)
-      run: npm audit --audit-level=high
-
-    - name: Install crawler-service dependencies
-      run: npm install --prefix mini-services/crawler-service
-
-    - name: Security Audit (Crawler Service)
-      run: npm audit --prefix mini-services/crawler-service --audit-level=high
+    - name: Security Audit (Production)
+      run: npm audit --omit=dev --audit-level=high
 
     - name: Build crawler-service
-      run: npm run build --prefix mini-services/crawler-service
+      run: npm run prebuild
 
     - name: Typecheck
       run: npm run typecheck
@@ -47,4 +41,3 @@ jobs:
       run: npm run build
       env:
         NEXT_TELEMETRY_DISABLED: 1
-

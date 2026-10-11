@@ -23,7 +23,7 @@ export async function GET(
     try {
       const data = await readFile(progressFile, "utf8");
       return NextResponse.json(JSON.parse(data));
-    } catch (e) {
+    } catch (_e) {
       // If file doesn't exist, it might be that it hasn't started or already finished.
       // Fallback to crawl storage to see if it's already done.
       const crawl = await getCrawl(id);
@@ -38,7 +38,7 @@ export async function GET(
 
       return NextResponse.json({ message: "No progress available" }, { status: 404 });
     }
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json({ error: "Failed to fetch progress" }, { status: 500 });
   }
 }

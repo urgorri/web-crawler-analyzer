@@ -5,7 +5,6 @@ import { useState } from 'react';
 import { Globe, LayoutDashboard, Plus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 
 import { useCrawlerStore } from '@/lib/crawler-store';
