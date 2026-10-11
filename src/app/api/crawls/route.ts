@@ -12,7 +12,7 @@ import {
   executeCrawlerProcess,
   transformCrawlerResults,
 } from "@/lib/crawler/runner";
-import { defaultAnalyzerRegistry, type AnalysisContext } from "@/lib/analyzers";
+import { defaultAnalyzerRegistry, type AnalysisContext, type AnalysisNetworkEntry } from "@/lib/analyzers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -328,7 +328,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
         metaGenerator: (firstPage.metaGenerator as string) || '',
         headers: (firstPage.headers as Record<string, string>) || {},
         html: (firstPage.html as string) || (firstPage.visibleText as string) || '',
-        networkRequests: (firstPage.network as any[]) || [],
+        networkRequests: (firstPage.network as unknown as AnalysisNetworkEntry[]) || [],
       };
 
       try {

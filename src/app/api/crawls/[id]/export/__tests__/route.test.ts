@@ -4,6 +4,7 @@ import { GET } from '../route';
 import { getCrawl } from '@/lib/crawl-storage';
 import { normalizeCrawl } from '@/lib/crawl-json-normalizer';
 import type { CrawlRecord } from '@/lib/crawl-storage';
+import type { NormalizedCrawl } from '@/app/api/crawls/types';
 
 vi.mock('@/lib/crawl-storage', () => ({
   getCrawl: vi.fn(),
@@ -76,7 +77,7 @@ describe('GET /api/crawls/[id]/export', () => {
     };
 
     mockGetCrawl.mockResolvedValueOnce(sampleCrawl);
-    mockNormalizeCrawl.mockReturnValueOnce(normalizedData as any);
+    mockNormalizeCrawl.mockReturnValueOnce(normalizedData as unknown as NormalizedCrawl);
 
     const request = new NextRequest('http://localhost/api/crawls/valid-id-123/export');
     const params = Promise.resolve({ id: 'valid-id-123' });

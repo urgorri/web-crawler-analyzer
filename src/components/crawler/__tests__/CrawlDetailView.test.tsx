@@ -509,15 +509,23 @@ describe('CrawlDetailView', () => {
       ...mockCrawlData,
       analysisResults: {
         'security-headers': {
+          analyzerId: 'security-headers',
+          name: 'HTTP Security Headers',
+          category: 'security',
+          status: 'success',
+          durationMs: 50,
           data: {
             score: 85,
             grade: 'A',
-            summary: { passed: 4, warned: 1, failed: 1 },
+            summary: { passed: 4, warned: 1, failed: 1, total: 6 },
             audits: [
               {
                 header: 'Content-Security-Policy',
                 status: 'pass',
                 importance: 'critical',
+                title: 'Content Security Policy',
+                score: 100,
+                value: 'default-src self',
                 description: 'Valid CSP',
               },
             ],

@@ -29,11 +29,13 @@
   ],
   "scripts": {
     "prebuild": "npm --prefix mini-services/crawler-service run build",
+    "predev": "npm --prefix mini-services/crawler-service run build",
     "dev": "next dev -p 3000",
     "build": "next build && node scripts/copy-standalone.mjs",
     "start": "node .next/standalone/server.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "pretest": "npm --prefix mini-services/crawler-service run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "prestart": "npm --prefix mini-services/crawler-service run build"
@@ -78,5 +80,8 @@
     "tailwindcss": "^4",
     "typescript": "^6.0.3",
     "vitest": "^5.0.3"
+  },
+  "overrides": {
+    "braces": ">=3.0.3"
   }
 }

@@ -15,8 +15,18 @@ vi.mock('@/lib/crawler/runner', async () => {
   const actual = await vi.importActual<typeof import('@/lib/crawler/runner')>('@/lib/crawler/runner');
   return {
     ...actual,
-    executeCrawlerProcess: vi.fn(),
-    resolveCrawlerCommand: vi.fn(),
+    resolveCrawlerCommand: vi.fn(() => ({ command: 'node', args: ['crawl.js'] })),
+    executeCrawlerProcess: vi.fn(async () => ({
+      exitCode: 0,
+      stdoutBuffer: JSON.stringify({
+        status: 'completed',
+        pages: [],
+        errors: [],
+        warnings: [],
+        stats: { total: 0, success: 0, failed: 0 },
+      }),
+      stderrBuffer: '',
+    })),
   };
 });
 
@@ -65,30 +75,40 @@ describe('POST /api/crawls', () => {
   });
 
   it('Should return 400 when all URLs are rejected by SSRF policy', async () => {
-    const request = new NextRequest('http://localhost/api/crawls', {
-      method: 'POST',
-      body: JSON.stringify({ urls: ['http://127.0.0.1', 'http://localhost'] }),
-    });
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const request = new NextRequest('http://localhost/api/crawls', {
+        method: 'POST',
+        body: JSON.stringify({ urls: ['http://127.0.0.1', 'http://localhost'] }),
+      });
 
-    const response = await POST(request);
+      const response = await POST(request);
 
-    expect(response.status).toBe(400);
-    const body = await response.json();
-    expect(typeof body.error).toBe('string');
-    expect(body.error.length).toBeGreaterThan(0);
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      expect(typeof body.error).toBe('string');
+      expect(body.error.length).toBeGreaterThan(0);
+    } finally {
+      consoleSpy.mockRestore();
+    }
   });
 
   it('Should return 400 when all valid URLs fail scope check against seed domain', async () => {
-    const request = new NextRequest('http://localhost/api/crawls', {
-      method: 'POST',
-      body: JSON.stringify({ urls: ['invalid-url-schema'] }),
-    });
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const request = new NextRequest('http://localhost/api/crawls', {
+        method: 'POST',
+        body: JSON.stringify({ urls: ['invalid-url-schema'] }),
+      });
 
-    const response = await POST(request);
+      const response = await POST(request);
 
-    expect(response.status).toBe(400);
-    const body = await response.json();
-    expect(typeof body.error).toBe('string');
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      expect(typeof body.error).toBe('string');
+    } finally {
+      consoleSpy.mockRestore();
+    }
   });
 
   it('Should filter out-of-scope URLs and proceed with in-scope URLs', async () => {
@@ -201,11 +221,16 @@ describe('GET /api/crawls', () => {
   });
 
   it('Should return 500 when listCrawls throws an unexpected error', async () => {
-    vi.mocked(crawlStorage.listCrawls).mockRejectedValueOnce(new Error('Storage failure'));
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      vi.mocked(crawlStorage.listCrawls).mockRejectedValueOnce(new Error('Storage failure'));
 
-    const response = await GET();
-    expect(response.status).toBe(500);
-    const body = await response.json();
-    expect(body.error).toBe('Failed to fetch crawls');
+      const response = await GET();
+      expect(response.status).toBe(500);
+      const body = await response.json();
+      expect(body.error).toBe('Failed to fetch crawls');
+    } finally {
+      consoleSpy.mockRestore();
+    }
   });
 });

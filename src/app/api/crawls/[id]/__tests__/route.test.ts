@@ -69,16 +69,21 @@ describe('GET /api/crawls/[id]', () => {
   });
 
   it('Should return 500 when an unexpected error occurs during fetch', async () => {
-    vi.mocked(crawlStorage.getCrawl).mockRejectedValue(new Error('Unexpected fetch error'));
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      vi.mocked(crawlStorage.getCrawl).mockRejectedValue(new Error('Unexpected fetch error'));
 
-    const request = new NextRequest('http://localhost/api/crawls/valid-id');
-    const response = await GET(request, {
-      params: Promise.resolve({ id: 'valid-id' }),
-    });
+      const request = new NextRequest('http://localhost/api/crawls/valid-id');
+      const response = await GET(request, {
+        params: Promise.resolve({ id: 'valid-id' }),
+      });
 
-    expect(response.status).toBe(500);
-    const body = await response.json();
-    expect(body.error).toBe('Failed to fetch crawl');
+      expect(response.status).toBe(500);
+      const body = await response.json();
+      expect(body.error).toBe('Failed to fetch crawl');
+    } finally {
+      consoleSpy.mockRestore();
+    }
   });
 });
 
@@ -131,17 +136,22 @@ describe('DELETE /api/crawls/[id]', () => {
   });
 
   it('Should return 500 when deleteCrawl throws an unexpected error', async () => {
-    vi.mocked(crawlStorage.deleteCrawl).mockRejectedValue(new Error('Unexpected delete error'));
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      vi.mocked(crawlStorage.deleteCrawl).mockRejectedValue(new Error('Unexpected delete error'));
 
-    const request = new NextRequest('http://localhost/api/crawls/valid-id', {
-      method: 'DELETE',
-    });
-    const response = await DELETE(request, {
-      params: Promise.resolve({ id: 'valid-id' }),
-    });
+      const request = new NextRequest('http://localhost/api/crawls/valid-id', {
+        method: 'DELETE',
+      });
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: 'valid-id' }),
+      });
 
-    expect(response.status).toBe(500);
-    const body = await response.json();
-    expect(body.error).toBe('Failed to delete crawl');
+      expect(response.status).toBe(500);
+      const body = await response.json();
+      expect(body.error).toBe('Failed to delete crawl');
+    } finally {
+      consoleSpy.mockRestore();
+    }
   });
 });
