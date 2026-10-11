@@ -178,7 +178,7 @@ export async function runTraceroute(target: string, timeoutMs = 10_000): Promise
     return await withTimeout(
       new Promise<TraceHop[]>((resolve, reject) => {
         tracer
-          .on("hop", (hop: any) => {
+          .on("hop", (hop) => {
             hops.push({
               hop: Number(hop?.hop) || hops.length + 1,
               ip: hop?.ip && hop.ip !== "*" ? String(hop.ip) : null,
@@ -212,9 +212,9 @@ export async function scanPorts(
   timeoutMs = 800,
 ): Promise<PortIntel[]> {
   if (!targetIp || ports.length === 0 || process.env.DISABLE_PORT_SCAN === 'true') return [];
-  const portscannerModule: any = await import("portscanner");
+  const portscannerModule = await import("portscanner");
   const portscanner = portscannerModule.default ?? portscannerModule;
-  const grabModule: any = await import("grab.js");
+  const grabModule = await import("grab.js");
   const grabber = grabModule.default ?? grabModule;
 
   const scanPromises = ports.map(async (port): Promise<PortIntel> => {
@@ -233,12 +233,12 @@ export async function scanPorts(
       let service: string | null = null;
       if (status === "open") {
         try {
-          const record: any = await withTimeout(
+          const record = await withTimeout(
             grabber.grab(targetIp, port, { timeout: timeoutMs }).run(),
             timeoutMs + 1_000,
             `Banner ${port}`,
           );
-          const bannerText = Buffer.isBuffer(record?.banner) ? record.banner.toString("utf8").trim() : "";
+          const bannerText = Buffer.isBuffer(record?.banner) ? record.banner.toString("utf8").trim() : (typeof record?.banner === "string" ? record.banner.trim() : "");
           banner = bannerText ? bannerText.slice(0, 500) : null;
           service = banner ? banner.split("\n")[0].slice(0, 120) : null;
         } catch {

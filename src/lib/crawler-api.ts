@@ -1,4 +1,5 @@
 import type { DomainIntel } from "@/app/api/crawls/types";
+import type { AnalyzerResult } from "@/lib/analyzers/types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -96,7 +97,7 @@ export interface CrawlDetail extends CrawlSummary {
   errors: string[] | null;
   lastErrorStage?: string | null;
   pages: PageData[];
-  analysisResults?: Record<string, unknown> | null;
+  analysisResults?: Record<string, AnalyzerResult> | null;
 }
 
 // ─── API helpers ─────────────────────────────────────────────────────────────

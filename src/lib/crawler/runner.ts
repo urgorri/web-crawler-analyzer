@@ -34,7 +34,7 @@ export interface RawCrawlerPage {
   full_content_ready_ms?: number;
   headers?: Record<string, string>;
   html?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface RawCrawlResult {
@@ -242,7 +242,7 @@ export async function executeCrawlerProcess(
 }
 
 export interface TransformedCrawlResults {
-  pages: Record<string, any>[];
+  pages: Record<string, unknown>[];
   stats: {
     avgLoadTimeMs?: number;
     minLoadTimeMs?: number;

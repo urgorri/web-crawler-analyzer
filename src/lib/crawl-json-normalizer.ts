@@ -75,12 +75,12 @@ export function normalizeCrawl(record: CrawlRecord): NormalizedCrawl {
     };
 
     // Process Buttons
-    const buttonIds = (page.buttons || []).map((b: any) => getOrAdd(entities.buttons, b));
+    const buttonIds = (page.buttons || []).map((b) => getOrAdd(entities.buttons, b));
 
     // Process Links
     const linkIds = {
-      internal: (page.links?.internal || []).map((l: any) => getOrAdd(entities.links, l)),
-      external: (page.links?.external || []).map((l: any) => getOrAdd(entities.links, l)),
+      internal: (page.links?.internal || []).map((l) => getOrAdd(entities.links, l)),
+      external: (page.links?.external || []).map((l) => getOrAdd(entities.links, l)),
     };
 
     // Process Scripts & Stylesheets
@@ -95,19 +95,19 @@ export function normalizeCrawl(record: CrawlRecord): NormalizedCrawl {
     const htmlClassIds = (page.html_classes || []).map((c: string) => getOrAdd(entities.classes, c));
 
     // Process Images
-    const imageIds = (page.images || []).map((img: any) => getOrAdd(entities.images, img));
+    const imageIds = (page.images || []).map((img) => getOrAdd(entities.images, img));
 
     // Process Forms
-    const formIds = (page.forms || []).map((f: any) => getOrAdd(entities.forms, f));
+    const formIds = (page.forms || []).map((f) => getOrAdd(entities.forms, f));
 
     // Process Resources
-    const resourceIds = (page.resources || []).map((r: any) => getOrAdd(entities.resources, r));
+    const resourceIds = (page.resources || []).map((r) => getOrAdd(entities.resources, r));
 
     // Process Network
-    const networkIds = (page.network || []).map((n: any) => getOrAdd(entities.network, n));
+    const networkIds = (page.network || []).map((n) => getOrAdd(entities.network, n));
 
     // Process Structured Data
-    const structuredDataIds = (page.structured_data || []).map((sd: any) =>
+    const structuredDataIds = (page.structured_data || []).map((sd) =>
       getOrAdd(entities.structuredData, sd)
     );
 

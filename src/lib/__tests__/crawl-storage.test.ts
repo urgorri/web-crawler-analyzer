@@ -139,7 +139,7 @@ describe('crawl-storage', () => {
 
       vi.mocked(fsPromises.stat).mockResolvedValue({
         birthtime: new Date('2023-01-01'),
-      } as any);
+      } as unknown as import('fs').Stats);
 
       vi.mocked(fsPromises.readFile).mockImplementation(async (filePath) => {
         if (filePath.toString().includes('crawl1.json')) {
