@@ -326,8 +326,9 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
         scripts: (firstPage.scripts as string[]) || [],
         stylesheets: (firstPage.stylesheets as string[]) || [],
         metaGenerator: (firstPage.metaGenerator as string) || '',
+        headers: (firstPage.headers as Record<string, string>) || {},
+        html: (firstPage.html as string) || (firstPage.visibleText as string) || '',
         networkRequests: (firstPage.network as any[]) || [],
-        html: (firstPage.visibleText as string) || '',
       };
 
       try {

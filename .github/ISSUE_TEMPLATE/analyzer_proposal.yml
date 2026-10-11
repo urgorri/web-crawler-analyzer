@@ -1,0 +1,40 @@
+name: Propose / Contribute SiteAnalyzer Plugin
+description: Propose or submit a new modular analysis plugin for the WebScope shell
+title: "[Analyzer]: "
+labels: ["analyzer", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        WebScope is an extensible web analysis orchestration shell! Use this template to propose or document a new `SiteAnalyzer` module.
+  - type: input
+    id: analyzer_id
+    attributes:
+      label: Analyzer Identifier & Name
+      placeholder: "e.g., id: accessibility-checker, name: WCAG 2.1 Contrast & Accessibility"
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Analysis Category
+      options:
+        - seo
+        - tech
+        - security
+        - network
+        - performance
+    validations:
+      required: true
+  - type: textarea
+    id: purpose
+    attributes:
+      label: Scope and Analysis Details
+      description: What signals does this analyzer evaluate from the page context (HTML, headers, network, scripts)?
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: External Tools or Dependencies
+      description: Does this analyzer require specific npm packages, CLI tools (like lighthouse), or API keys?

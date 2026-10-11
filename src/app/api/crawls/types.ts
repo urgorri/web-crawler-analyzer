@@ -59,6 +59,8 @@ export interface PageData {
   loadTimeMs?: number;
   domContentLoadedMs?: number;
   fullContentReadyMs?: number;
+  headers?: Record<string, string>;
+  html?: string;
   error?: string | null;
   scrapedAt?: string;
 }

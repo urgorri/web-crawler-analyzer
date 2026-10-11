@@ -68,6 +68,8 @@ export interface PageResult {
   load_time_ms: number;
   dom_content_loaded_ms: number;
   full_content_ready_ms: number;
+  headers?: Record<string, string>;
+  html?: string;
 }
 
 const DEFAULT_PORTS = [21, 22, 25, 53, 80, 110, 143, 443, 587, 8080, 8443, 3306, 5432, 6379];
@@ -192,6 +194,28 @@ export async function crawlPage(browser: import("playwright").Browser, url: stri
     const finalUrl = page.url();
     const status = gotoResponse?.status() ?? 200;
 
+    const rawHeaders = gotoResponse?.headers() ?? {};
+    const sanitizedHeaders: Record<string, string> = {};
+    for (const [key, value] of Object.entries(rawHeaders)) {
+      if (typeof value === "string") {
+        if (/^(set-cookie|authorization)$/i.test(key)) {
+          sanitizedHeaders[key.toLowerCase()] = "[REDACTED]";
+        } else {
+          sanitizedHeaders[key.toLowerCase()] = sanitize(value).substring(0, 4000);
+        }
+      }
+    }
+
+    let pageHtml = "";
+    try {
+      pageHtml = (await page.content()) || "";
+      if (pageHtml.length > 250000) {
+        pageHtml = pageHtml.substring(0, 250000);
+      }
+    } catch {
+      pageHtml = "";
+    }
+
     const extracted = await page.evaluate(() => {
       const getMeta = (n: string) => { const el = document.querySelector(`meta[name="${n}"]`) || document.querySelector(`meta[property="${n}"]`); return el?.getAttribute("content")?.trim() ?? ""; };
       const canonical = document.querySelector('link[rel="canonical"]')?.getAttribute("href")?.trim() ?? "";
@@ -287,6 +311,8 @@ export async function crawlPage(browser: import("playwright").Browser, url: stri
       load_time_ms: Math.round(fullContentReadyTime - startTime),
       dom_content_loaded_ms: Math.round(domContentLoadedTime - startTime),
       full_content_ready_ms: Math.round(fullContentReadyTime - startTime),
+      headers: sanitizedHeaders,
+      html: pageHtml,
     };
     result.tech_evidence = extractTechEvidence(result);
     return result;

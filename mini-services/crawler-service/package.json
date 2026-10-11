@@ -1,6 +1,9 @@
 {
   "name": "crawler-service",
   "version": "1.0.0",
+  "description": "Standalone Playwright Chromium web crawler worker and domain intelligence mini-service",
+  "author": "Gastón Urgorri <urgorrigaston@gmail.com>",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "scripts": {
