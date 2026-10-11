@@ -20,11 +20,39 @@ import type { CrawlDetail } from '@/lib/crawler-api';
 export function RawTab({ crawl }: { crawl: CrawlDetail }) {
   const [copied, setCopied] = React.useState(false);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(JSON.stringify(crawl, null, 2));
-    setCopied(true);
-    toast.success('Copied to clipboard');
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    const text = JSON.stringify(crawl, null, 2);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        throw new Error('Clipboard API unavailable');
+      }
+      setCopied(true);
+      toast.success('Copied to clipboard');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        const success = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        if (success) {
+          setCopied(true);
+          toast.success('Copied to clipboard');
+          setTimeout(() => setCopied(false), 2000);
+          return;
+        }
+      } catch {
+        // Fallback failed
+      }
+      toast.error('Failed to copy to clipboard');
+    }
   };
 
   return (
