@@ -1,7 +1,4 @@
-import assert from 'node:assert/strict';
-// Simple test script for the normalizer
-// Run with: npx tsx src/lib/__tests__/crawl-json-normalizer.test.ts
-
+import { describe, it, expect } from 'vitest';
 import { normalizeCrawl } from "../crawl-json-normalizer";
 import { CrawlRecord } from "../crawl-storage";
 
@@ -115,66 +112,66 @@ const mockCrawl: CrawlRecord = {
   p95LoadTimeMs: 1500,
 };
 
-function runTest() {
-  const normalized = normalizeCrawl(mockCrawl);
+describe("normalizeCrawl", () => {
+  it("normalizes crawl records and deduplicates shared entities", () => {
+    const normalized = normalizeCrawl(mockCrawl);
 
-  // Verify entities
-  const sharedH1 = normalized.pages[0].headingIds.h1[0];
-  const page2H1 = normalized.pages[1].headingIds.h1[0];
-  const page3H1 = normalized.pages[2].headingIds.h1[0];
+    // Verify entities
+    const sharedH1 = normalized.pages[0].headingIds.h1[0];
+    const page2H1 = normalized.pages[1].headingIds.h1[0];
+    const page3H1 = normalized.pages[2].headingIds.h1[0];
 
-  assert.equal(sharedH1, page2H1, "Page 1 & 2 should share H1 'Welcome'");
-  assert.notEqual(sharedH1, page3H1, "Page 1 & 3 should have different H1");
+    expect(sharedH1).toBe(page2H1);
+    expect(sharedH1).not.toBe(page3H1);
 
-  const sharedLink = normalized.pages[0].linkIds.internal[0];
-  const page2Link = normalized.pages[1].linkIds.internal[0];
-  assert.equal(sharedLink, page2Link, "Page 1 & 2 should share internal link");
+    const sharedLink = normalized.pages[0].linkIds.internal[0];
+    const page2Link = normalized.pages[1].linkIds.internal[0];
+    expect(sharedLink).toBe(page2Link);
 
-  const sharedScript = normalized.pages[0].scriptIds[0];
-  const page2Script = normalized.pages[1].scriptIds[0];
-  assert.equal(sharedScript, page2Script, "Page 1 & 2 should share script");
+    const sharedScript = normalized.pages[0].scriptIds[0];
+    const page2Script = normalized.pages[1].scriptIds[0];
+    expect(sharedScript).toBe(page2Script);
 
-  const sharedTech = normalized.pages[0].techIds[0]; // React
-  const page2Tech = normalized.pages[1].techIds[0]; // React
-  assert.equal(sharedTech, page2Tech, "Page 1 & 2 should share tech 'React'");
+    const sharedTech = normalized.pages[0].techIds[0]; // React
+    const page2Tech = normalized.pages[1].techIds[0]; // React
+    expect(sharedTech).toBe(page2Tech);
 
-  const sharedClass = normalized.pages[0].bodyClassIds[0]; // bg-white
-  const page2Class = normalized.pages[1].bodyClassIds[0]; // bg-white
-  assert.equal(sharedClass, page2Class, "Page 1 & 2 should share class 'bg-white'");
+    const sharedClass = normalized.pages[0].bodyClassIds[0]; // bg-white
+    const page2Class = normalized.pages[1].bodyClassIds[0]; // bg-white
+    expect(sharedClass).toBe(page2Class);
 
-  const sharedImage = normalized.pages[0].imageIds[0];
-  const page2Image = normalized.pages[1].imageIds[0];
-  assert.equal(sharedImage, page2Image, "Page 1 & 2 should share image");
+    const sharedImage = normalized.pages[0].imageIds[0];
+    const page2Image = normalized.pages[1].imageIds[0];
+    expect(sharedImage).toBe(page2Image);
 
-  const sharedForm = normalized.pages[0].formIds[0];
-  const page2Form = normalized.pages[1].formIds[0];
-  assert.equal(sharedForm, page2Form, "Page 1 & 2 should share form (stable order check)");
+    const sharedForm = normalized.pages[0].formIds[0];
+    const page2Form = normalized.pages[1].formIds[0];
+    expect(sharedForm).toBe(page2Form);
 
-  const sharedResource = normalized.pages[0].resourceIds[0];
-  const page2Resource = normalized.pages[1].resourceIds[0];
-  assert.equal(sharedResource, page2Resource, "Page 1 & 2 should share resource");
+    const sharedResource = normalized.pages[0].resourceIds[0];
+    const page2Resource = normalized.pages[1].resourceIds[0];
+    expect(sharedResource).toBe(page2Resource);
 
-  const sharedNetwork = normalized.pages[0].networkIds[0];
-  const page2Network = normalized.pages[1].networkIds[0];
-  assert.equal(sharedNetwork, page2Network, "Page 1 & 2 should share network");
+    const sharedNetwork = normalized.pages[0].networkIds[0];
+    const page2Network = normalized.pages[1].networkIds[0];
+    expect(sharedNetwork).toBe(page2Network);
 
-  const sharedSD = normalized.pages[0].structuredDataIds[0];
-  const page2SD = normalized.pages[1].structuredDataIds[0];
-  assert.equal(sharedSD, page2SD, "Page 1 & 2 should share structured data (stable order check)");
+    const sharedSD = normalized.pages[0].structuredDataIds[0];
+    const page2SD = normalized.pages[1].structuredDataIds[0];
+    expect(sharedSD).toBe(page2SD);
 
-  // Verify output case
-  assert.equal(normalized.pages[0].loadTimeMs, 1200, "Page 1 has loadTimeMs");
-  assert.equal(normalized.avgLoadTimeMs, 1233, "Crawl has avgLoadTimeMs");
+    // Verify output case
+    expect(normalized.pages[0].loadTimeMs).toBe(1200);
+    expect(normalized.avgLoadTimeMs).toBe(1233);
 
-  assert.ok(normalized.pages[0].title, "Page 1 title in output");
-  assert.equal(normalized.pages[0].techIds.length, 2, "Page 1 techIds count is 2");
+    expect(normalized.pages[0].title).toBe("Page 1");
+    expect(normalized.pages[0].techIds.length).toBe(2);
 
-  // Verify counts
-  assert.equal(Object.keys(normalized.entities.headings).length, 4, "Unique Headings count");
-  assert.equal(Object.keys(normalized.entities.links).length, 3, "Unique Links count");
-  assert.equal(Object.keys(normalized.entities.scripts).length, 3, "Unique Scripts count");
-  assert.equal(Object.keys(normalized.entities.technologies).length, 3, "Unique Tech count");
-  assert.equal(Object.keys(normalized.entities.classes).length, 3, "Unique Classes count");
-}
-
-runTest();
+    // Verify counts
+    expect(Object.keys(normalized.entities.headings).length).toBe(4);
+    expect(Object.keys(normalized.entities.links).length).toBe(3);
+    expect(Object.keys(normalized.entities.scripts).length).toBe(3);
+    expect(Object.keys(normalized.entities.technologies).length).toBe(3);
+    expect(Object.keys(normalized.entities.classes).length).toBe(3);
+  });
+});

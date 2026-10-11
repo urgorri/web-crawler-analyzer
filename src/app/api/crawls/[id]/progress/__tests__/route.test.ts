@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET } from '../route';
 import { readFile } from 'fs/promises';
-import { getCrawl } from '@/lib/crawl-storage';
+import { getCrawl, CrawlRecord } from '@/lib/crawl-storage';
 
 vi.mock('fs/promises');
 vi.mock('@/lib/crawl-storage');
@@ -47,16 +47,21 @@ describe('GET /api/crawls/[id]/progress', () => {
 
   it('should fallback to crawl storage if progress file is missing and crawl is completed', async () => {
     vi.mocked(readFile).mockRejectedValueOnce(new Error('File not found'));
-    const mockCrawl = {
+    const mockCrawl: CrawlRecord = {
       id: 'valid-id-456',
       name: 'Test Crawl',
       urls: ['https://example.com'],
       startedAt: '2025-01-01T00:00:00.000Z',
       completedAt: '2025-01-01T00:05:00.000Z',
-      status: 'completed' as const,
+      status: 'completed',
       seedCount: 1,
       pageCount: 20,
       errorCount: 0,
+      config: null,
+      engine: 'playwright',
+      warnings: [],
+      errors: [],
+      lastErrorStage: null,
       pages: [],
     };
     vi.mocked(getCrawl).mockResolvedValueOnce(mockCrawl);
@@ -79,15 +84,21 @@ describe('GET /api/crawls/[id]/progress', () => {
 
   it('should fallback to crawl storage and use current timestamp if completedAt is missing', async () => {
     vi.mocked(readFile).mockRejectedValueOnce(new Error('File not found'));
-    const mockCrawl = {
+    const mockCrawl: CrawlRecord = {
       id: 'valid-id-789',
       name: 'Failed Crawl',
       urls: ['https://example.com'],
       startedAt: '2025-01-01T00:00:00.000Z',
-      status: 'failed' as const,
+      completedAt: null,
+      status: 'failed',
       seedCount: 1,
       pageCount: 5,
       errorCount: 5,
+      config: null,
+      engine: 'playwright',
+      warnings: [],
+      errors: [],
+      lastErrorStage: null,
       pages: [],
     };
     vi.mocked(getCrawl).mockResolvedValueOnce(mockCrawl);
@@ -107,15 +118,21 @@ describe('GET /api/crawls/[id]/progress', () => {
 
   it('should return 404 if progress file is missing and crawl is still running', async () => {
     vi.mocked(readFile).mockRejectedValueOnce(new Error('File not found'));
-    const mockCrawl = {
+    const mockCrawl: CrawlRecord = {
       id: 'valid-id-running',
       name: 'Running Crawl',
       urls: ['https://example.com'],
       startedAt: '2025-01-01T00:00:00.000Z',
-      status: 'running' as const,
+      completedAt: null,
+      status: 'running',
       seedCount: 1,
       pageCount: 0,
       errorCount: 0,
+      config: null,
+      engine: 'playwright',
+      warnings: [],
+      errors: [],
+      lastErrorStage: null,
       pages: [],
     };
     vi.mocked(getCrawl).mockResolvedValueOnce(mockCrawl);

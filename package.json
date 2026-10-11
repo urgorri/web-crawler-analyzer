@@ -1,5 +1,5 @@
 {
-  "name": "nextjs_tailwind_shadcn_ts",
+  "name": "web-crawler-analyzer",
   "version": "0.2.0",
   "private": true,
   "scripts": {
@@ -8,6 +8,9 @@
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_ENV=production node .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prestart": "npm --prefix mini-services/crawler-service run build"
   },
   "dependencies": {

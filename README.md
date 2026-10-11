@@ -22,8 +22,8 @@ WebScope is a powerful web crawler and analyzer built with Next.js, Playwright, 
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/urgorri/webscope.git
-   cd webscope
+   git clone https://github.com/urgorri/web-crawler-analyzer.git
+   cd web-crawler-analyzer
    ```
 
 2. **Install dependencies**:
@@ -79,10 +79,14 @@ For more details on the security implementation, see `src/lib/ssrf-policy.ts`.
 - `npm run dev`: Starts the Next.js development server.
 - `npm run build`: Builds the application for production.
 - `npm run prebuild`: Builds the standalone crawler service.
-- `npm run lint`: Runs the linter.
+- `npm run lint`: Runs ESLint across the codebase.
+- `npm run typecheck`: Runs TypeScript typechecking (`tsc --noEmit`).
+- `npm test`: Runs the Vitest test suite.
+- `npm run test:watch`: Runs Vitest in watch mode.
 
 ## Documentation
 
+- [Architecture & Agents Guide](AGENTS.md)
 - [Contributing](CONTRIBUTING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Security Policy](SECURITY.md)

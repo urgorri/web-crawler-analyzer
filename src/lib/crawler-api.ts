@@ -85,6 +85,7 @@ export interface CrawlDetail extends CrawlSummary {
   domainIntel?: DomainIntel | null;
   warnings: string[] | null;
   errors: string[] | null;
+  lastErrorStage?: string | null;
   pages: PageData[];
 }
 

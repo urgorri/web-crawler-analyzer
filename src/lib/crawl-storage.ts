@@ -132,42 +132,47 @@ export async function listCrawls() {
     const id = fileName.replace(".json", "");
     const sumPath = summaryPath(id);
 
-    let parsed: Partial<CrawlRecord>;
-    let fileStat;
-
     try {
-      const [contents, stats] = await Promise.all([
-        readFile(sumPath, "utf8"),
-        stat(fullPath), // stat the original file for birthtime fallback
-      ]);
-      parsed = JSON.parse(contents);
-      fileStat = stats;
-    } catch {
-      // Fallback: summary doesn't exist, read full file, write summary
-      const [contents, stats] = await Promise.all([
-        readFile(fullPath, "utf8"),
-        stat(fullPath),
-      ]);
-      const fullParsed = JSON.parse(contents) as CrawlRecord;
-      parsed = getSummary(fullParsed);
-      fileStat = stats;
+      let parsed: Partial<CrawlRecord>;
+      let fileStat;
 
-      // Fire and forget writing the summary for next time
-      const writePromise = writeFile(sumPath, JSON.stringify(parsed, null, 2), "utf8");
-      if (writePromise && typeof writePromise.catch === "function") {
-        writePromise.catch(() => {});
+      try {
+        const [contents, stats] = await Promise.all([
+          readFile(sumPath, "utf8"),
+          stat(fullPath), // stat the original file for birthtime fallback
+        ]);
+        parsed = JSON.parse(contents);
+        fileStat = stats;
+      } catch {
+        // Fallback: summary doesn't exist, read full file, write summary
+        const [contents, stats] = await Promise.all([
+          readFile(fullPath, "utf8"),
+          stat(fullPath),
+        ]);
+        const fullParsed = JSON.parse(contents) as CrawlRecord;
+        parsed = getSummary(fullParsed);
+        fileStat = stats;
+
+        // Fire and forget writing the summary for next time
+        const writePromise = writeFile(sumPath, JSON.stringify(parsed, null, 2), "utf8");
+        if (writePromise && typeof writePromise.catch === "function") {
+          writePromise.catch(() => {});
+        }
       }
-    }
 
-    return {
-      ...parsed,
-      startedAt: parsed.startedAt || fileStat.birthtime.toISOString(),
-    } as CrawlRecord; // Cast because pages is intentionally omitted but the return type expects CrawlRecord structure mostly
+      return {
+        ...parsed,
+        startedAt: parsed.startedAt || fileStat.birthtime.toISOString(),
+      } as CrawlRecord;
+    } catch {
+      return null;
+    }
   });
 
-  const crawls = await Promise.all(crawlsPromises);
+  const resolved = await Promise.all(crawlsPromises);
+  const crawls = resolved.filter((c): c is CrawlRecord => c !== null);
 
-  return crawls.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  return crawls.sort((a, b) => (b.startedAt || "").localeCompare(a.startedAt || ""));
 }
 
 export async function deleteCrawl(id: string) {
