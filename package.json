@@ -1,6 +1,28 @@
 {
   "name": "web-crawler-analyzer",
   "version": "0.2.0",
+  "description": "Modular web crawler, SEO metadata analyzer, and web intelligence orchestration shell built with Next.js and Playwright.",
+  "author": "Gastón Urgorri <urgorrigaston@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/urgorri/web-crawler-analyzer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/urgorri/web-crawler-analyzer/issues"
+  },
+  "homepage": "https://github.com/urgorri/web-crawler-analyzer#readme",
+  "keywords": [
+    "web-crawler",
+    "seo-analyzer",
+    "security-headers",
+    "tech-profiler",
+    "playwright",
+    "nextjs",
+    "website-analysis",
+    "boilerplate",
+    "orchestration-shell"
+  ],
   "private": true,
   "workspaces": [
     "mini-services/*"

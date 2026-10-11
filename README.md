@@ -19,6 +19,7 @@ It is designed to serve as both an **out-of-the-box analysis tool** and an **ope
 - **Purpose-Built Delegated Tools**:
   - **Technology Profiling**: Identifies frameworks, CMSs, CSS toolkits, analytics, and CDNs from script signatures, HTML markers, and response headers.
   - **HTTP Security Headers**: Audits CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, and Permissions-Policy with automated scoring.
+  - **SEO & Metadata Quality**: Evaluates title length, meta description, heading structure, canonical link, OpenGraph tags, and image alt text.
   - **Network & Domain Intel**: Gathers DNS (A, AAAA, MX, NS, TXT), WHOIS, RDAP, and network hops with strict timeout isolation.
 - **SSRF Hardening**: Automated blocking of private IP ranges (`10.0.0.0/8`, `192.168.0.0/16`, `127.0.0.0/8`) and localhost aliases.
 - **Clean Monorepo & Cross-Platform**: npm workspaces, typed REST API, and native compatibility across Windows, macOS, and Linux.
@@ -40,8 +41,9 @@ flowchart TD
     Context --> Pipeline["Analyzer Pipeline\n(AnalyzerRegistry)"]
     Pipeline --> M1["Tech Profiler\n(TechProfilerAnalyzer)"]
     Pipeline --> M2["Security Headers\n(SecurityHeadersAnalyzer)"]
-    Pipeline --> M3["Domain Intel\n(DNS / RDAP / WHOIS)"]
-    Pipeline --> M4["Custom Analyzers...\n(implementing SiteAnalyzer)"]
+    Pipeline --> M3["SEO Quality\n(SeoMetadataAnalyzer)"]
+    Pipeline --> M4["Domain Intel\n(DNS / RDAP / WHOIS)"]
+    Pipeline --> M5["Custom Analyzers...\n(implementing SiteAnalyzer)"]
     
     Pipeline --> Storage
     Storage --> Disk["output/*.json (Zero-DB Cache)"]

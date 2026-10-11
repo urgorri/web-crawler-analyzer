@@ -221,6 +221,8 @@ export default function CrawlDetailView() {
           <TabsTrigger value="domain">Domain Intel</TabsTrigger>
           <TabsTrigger value="network">Network</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="seo">SEO Quality</TabsTrigger>
+          <TabsTrigger value="plugins">Plugins</TabsTrigger>
           <TabsTrigger value="raw">Raw JSON</TabsTrigger>
         </TabsList>
 
@@ -250,6 +252,14 @@ export default function CrawlDetailView() {
 
         <TabsContent value="security">
           <SecurityTab crawl={crawl} />
+        </TabsContent>
+
+        <TabsContent value="seo">
+          <SeoTab crawl={crawl} />
+        </TabsContent>
+
+        <TabsContent value="plugins">
+          <PluginsTab crawl={crawl} />
         </TabsContent>
 
         <TabsContent value="raw">
@@ -510,9 +520,8 @@ function PagesTab({ crawl }: { crawl: CrawlDetail }) {
 // ─── Tech Evidence Tab ───────────────────────────────────────────────────────
 
 function TechTab({ crawl }: { crawl: CrawlDetail }) {
-  const pages = crawl.pages ?? [];
-
   const entries = React.useMemo(() => {
+    const pages = crawl.pages ?? [];
     const techMap = new Map<string, { pages: string[] }>();
 
     for (const page of pages) {
@@ -529,7 +538,10 @@ function TechTab({ crawl }: { crawl: CrawlDetail }) {
     return Array.from(techMap.entries()).sort((a, b) => b[1].pages.length - a[1].pages.length);
   }, [crawl.pages]);
 
-  if (entries.length === 0) {
+  const techReport = (crawl.analysisResults?.['tech-profiler'] as any)?.data;
+  const hasReport = techReport?.technologies && techReport.technologies.length > 0;
+
+  if (entries.length === 0 && !hasReport) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
@@ -541,39 +553,103 @@ function TechTab({ crawl }: { crawl: CrawlDetail }) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Technology Evidence ({entries.length})</CardTitle>
-        <CardDescription>Technologies detected across all crawled pages.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <ScrollArea>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Technology</TableHead>
-                <TableHead>Pages</TableHead>
-                <TableHead className="hidden md:table-cell">Found On</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {entries.map(([tech, info]) => (
-                <TableRow key={tech}>
-                  <TableCell className="font-medium">{tech}</TableCell>
-                  <TableCell className="tabular-nums">{info.pages.length}</TableCell>
-                  <TableCell className="hidden md:table-cell max-w-[400px]">
-                    <span className="font-mono text-xs text-muted-foreground truncate block">
-                      {info.pages[0]}
-                      {info.pages.length > 1 && ` +${info.pages.length - 1} more`}
-                    </span>
-                  </TableCell>
+    <div className="space-y-6">
+      {hasReport && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Tech Profiler Analysis ({techReport.totalDetected || techReport.technologies.length})</CardTitle>
+                <CardDescription>
+                  Frameworks, CMS platforms, UI libraries, and tooling identified via signature matching
+                </CardDescription>
+              </div>
+            </div>
+            {techReport.categories && (
+              <div className="flex flex-wrap gap-2 pt-2">
+                {Object.entries(techReport.categories).map(([cat, count]) => (
+                  <Badge key={cat} variant="secondary" className="text-xs">
+                    {cat}: {String(count)}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Technology</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Confidence</TableHead>
+                  <TableHead>Evidence Signatures</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </ScrollArea>
-      </CardContent>
-    </Card>
+              </TableHeader>
+              <TableBody>
+                {techReport.technologies.map((tech: any, idx: number) => (
+                  <TableRow key={idx}>
+                    <TableCell className="font-semibold text-sm">{tech.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">{tech.category}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={tech.confidence >= 90 ? 'default' : 'secondary'} className="text-xs">
+                        {tech.confidence}%
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="max-w-[360px]">
+                      <div className="flex flex-wrap gap-1">
+                        {tech.evidence?.map((ev: string, eIdx: number) => (
+                          <span key={eIdx} className="font-mono text-[11px] bg-muted px-1.5 py-0.5 rounded truncate max-w-[200px]" title={ev}>
+                            {ev}
+                          </span>
+                        ))}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {entries.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Technology Evidence ({entries.length})</CardTitle>
+            <CardDescription>Raw signatures matched across all crawled URLs.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Technology</TableHead>
+                    <TableHead>Pages</TableHead>
+                    <TableHead className="hidden md:table-cell">Found On</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {entries.map(([tech, info]) => (
+                    <TableRow key={tech}>
+                      <TableCell className="font-medium">{tech}</TableCell>
+                      <TableCell className="tabular-nums">{info.pages.length}</TableCell>
+                      <TableCell className="hidden md:table-cell max-w-[400px]">
+                        <span className="font-mono text-xs text-muted-foreground truncate block">
+                          {info.pages[0]}
+                          {info.pages.length > 1 && ` +${info.pages.length - 1} more`}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 
@@ -800,8 +876,8 @@ function DomainTab({ crawl }: { crawl: CrawlDetail }) {
 // ─── Network Tab ─────────────────────────────────────────────────────────────
 
 function NetworkTab({ crawl }: { crawl: CrawlDetail }) {
-  const pages = crawl.pages ?? [];
   const allRequests = React.useMemo(() => {
+    const pages = crawl.pages ?? [];
     const requests: Array<{
       page: string;
       url: string;
@@ -817,7 +893,7 @@ function NetworkTab({ crawl }: { crawl: CrawlDetail }) {
       }
     }
     return requests;
-  }, [pages]);
+  }, [crawl.pages]);
 
   if (allRequests.length === 0) {
     return (
@@ -1028,6 +1104,175 @@ function SecurityTab({ crawl }: { crawl: CrawlDetail }) {
                         Recommendation: {audit.recommendation}
                       </p>
                     )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── SEO Tab ────────────────────────────────────────────────────────────────
+
+function SeoTab({ crawl }: { crawl: CrawlDetail }) {
+  const seoReport = (crawl.analysisResults?.['seo-metadata'] as any)?.data;
+
+  if (!seoReport) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center text-muted-foreground text-sm">
+          No SEO metadata audit available for this crawl.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const { score, grade, audits, summary } = seoReport;
+
+  const gradeColors: Record<string, string> = {
+    'A+': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300',
+    A: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300',
+    B: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border-blue-300',
+    C: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-300',
+    D: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300 border-orange-300',
+    F: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border-rose-300',
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>SEO Score & Grade</CardDescription>
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center justify-center rounded-md border px-3 py-1 text-2xl font-bold ${gradeColors[grade] || ''}`}>
+                {grade}
+              </span>
+              <span className="text-sm text-muted-foreground font-mono">({score}/100)</span>
+            </div>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Passed Checks</CardDescription>
+            <CardTitle className="text-2xl text-emerald-600">{summary?.passed ?? 0}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Warnings</CardDescription>
+            <CardTitle className="text-2xl text-amber-600">{summary?.warned ?? 0}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Failed Checks</CardDescription>
+            <CardTitle className="text-2xl text-rose-600">{summary?.failed ?? 0}</CardTitle>
+          </CardHeader>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>SEO & Metadata Quality Audits</CardTitle>
+          <CardDescription>
+            Evaluation of page title, meta description, heading structure, canonical link, and social tags
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Audit Check</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Observed</TableHead>
+                <TableHead>Findings & Recommendation</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {audits?.map((audit: any, index: number) => (
+                <TableRow key={index}>
+                  <TableCell className="font-semibold text-xs">{audit.name}</TableCell>
+                  <TableCell>
+                    <Badge variant={audit.status === 'pass' ? 'outline' : audit.status === 'warn' ? 'secondary' : 'destructive'}>
+                      {audit.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-xs font-mono text-muted-foreground">{audit.value != null ? String(audit.value) : '—'}</TableCell>
+                  <TableCell className="text-xs space-y-1">
+                    <p>{audit.message}</p>
+                    {audit.recommendation && (
+                      <p className="font-mono text-[11px] text-amber-700 dark:text-amber-400">
+                        Recommendation: {audit.recommendation}
+                      </p>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Plugins Tab ────────────────────────────────────────────────────────────
+
+function PluginsTab({ crawl }: { crawl: CrawlDetail }) {
+  const results = crawl.analysisResults || {};
+  const entries = Object.entries(results);
+
+  if (entries.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center text-muted-foreground text-sm">
+          No analyzer plugin executions recorded for this crawl.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Analyzer Plugins Pipeline ({entries.length})</CardTitle>
+          <CardDescription>
+            Registered SiteAnalyzer extensions executed in the analysis pipeline
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Analyzer ID</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Execution Time</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {entries.map(([id, res]: [string, any]) => (
+                <TableRow key={id}>
+                  <TableCell className="font-mono text-xs font-semibold">{id}</TableCell>
+                  <TableCell className="text-sm font-medium">{res?.name || id}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="capitalize text-xs">
+                      {res?.category || 'general'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={res?.status === 'success' ? 'default' : res?.status === 'skipped' ? 'secondary' : 'destructive'} className="text-xs">
+                      {res?.status || 'unknown'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {res?.durationMs != null ? `${res.durationMs}ms` : '—'}
                   </TableCell>
                 </TableRow>
               ))}

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { SecurityHeadersAnalyzer } from '../security-headers';
 import { TechProfilerAnalyzer } from '../tech-profiler';
+import { SeoMetadataAnalyzer } from '../seo-metadata';
 import type { AnalysisContext } from '../types';
 
 describe('SecurityHeadersAnalyzer', () => {
@@ -88,5 +89,65 @@ describe('TechProfilerAnalyzer', () => {
     const techNames = report.technologies.map((t) => t.name);
 
     expect(techNames).toContain('WordPress');
+  });
+});
+
+describe('SeoMetadataAnalyzer', () => {
+  const analyzer = new SeoMetadataAnalyzer();
+
+  it('evaluates optimal SEO metadata and awards high grade', async () => {
+    const context: AnalysisContext = {
+      crawlId: 'c5',
+      targetUrl: 'https://mysite.com',
+      finalUrl: 'https://mysite.com',
+      domain: 'mysite.com',
+      statusCode: 200,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>WebScope - High Performance Web Analysis Shell</title>
+            <meta name="description" content="WebScope is a modern modular web crawler and analysis shell for extracting metadata, tech stacks, and domain intelligence.">
+            <link rel="canonical" href="https://mysite.com">
+            <meta property="og:title" content="WebScope">
+            <meta property="og:description" content="Web analysis shell">
+            <meta property="og:image" content="https://mysite.com/og.png">
+          </head>
+          <body>
+            <h1>Comprehensive Website Auditing</h1>
+            <img src="/logo.png" alt="Company Logo">
+          </body>
+        </html>
+      `,
+    };
+
+    const report = await analyzer.run(context);
+    expect(report.score).toBeGreaterThanOrEqual(90);
+    expect(['A', 'A+']).toContain(report.grade);
+    expect(report.summary.passed).toBeGreaterThanOrEqual(5);
+    expect(report.summary.failed).toBe(0);
+  });
+
+  it('flags missing title, description, and h1 with low grade', async () => {
+    const context: AnalysisContext = {
+      crawlId: 'c6',
+      targetUrl: 'https://poor-seo.com',
+      finalUrl: 'https://poor-seo.com',
+      domain: 'poor-seo.com',
+      statusCode: 200,
+      html: `
+        <html>
+          <body>
+            <div>No headings or title here</div>
+            <img src="/banner.jpg">
+          </body>
+        </html>
+      `,
+    };
+
+    const report = await analyzer.run(context);
+    expect(report.score).toBeLessThan(40);
+    expect(report.grade).toBe('F');
+    expect(report.summary.failed).toBeGreaterThanOrEqual(3);
   });
 });

@@ -63,6 +63,7 @@ export default function NewCrawlView() {
   const [userAgent, setUserAgent] = useState('');
   const [enableTech, setEnableTech] = useState(true);
   const [enableSecurity, setEnableSecurity] = useState(true);
+  const [enableSeo, setEnableSeo] = useState(true);
 
   const urlList = urls
     .split('\n')
@@ -135,12 +136,14 @@ export default function NewCrawlView() {
         'tech-profiler': enableTech,
         securityHeaders: enableSecurity,
         'security-headers': enableSecurity,
+        'seo-metadata': enableSeo,
+        seo: enableSeo,
       },
     };
     if (userAgent.trim()) cfg.userAgent = userAgent.trim();
 
     mutation.mutate({ urls: urlList, config: cfg, name: crawlName.trim() });
-  }, [urlList, urlErrors, scopeErrors, timeout, maxPages, concurrency, headless, waitForNetwork, userAgent, enableTech, enableSecurity, crawlName, mutation]);
+  }, [urlList, urlErrors, scopeErrors, timeout, maxPages, concurrency, headless, waitForNetwork, userAgent, enableTech, enableSecurity, enableSeo, crawlName, mutation]);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -334,6 +337,17 @@ export default function NewCrawlView() {
                       id="enableSecurity"
                       checked={enableSecurity}
                       onCheckedChange={setEnableSecurity}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border p-3 sm:col-span-2">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="enableSeo" className="text-sm">SEO Quality</Label>
+                      <p className="text-xs text-muted-foreground">Titles, meta descriptions, headings & Open Graph</p>
+                    </div>
+                    <Switch
+                      id="enableSeo"
+                      checked={enableSeo}
+                      onCheckedChange={setEnableSeo}
                     />
                   </div>
                 </div>

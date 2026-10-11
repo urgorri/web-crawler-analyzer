@@ -32,6 +32,8 @@ export interface RawCrawlerPage {
   load_time_ms?: number;
   dom_content_loaded_ms?: number;
   full_content_ready_ms?: number;
+  headers?: Record<string, string>;
+  html?: string;
   [key: string]: any;
 }
 
