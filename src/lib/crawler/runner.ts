@@ -12,6 +12,7 @@ export interface CrawlConfig {
   headless?: boolean;
   waitForNetwork?: number;
   userAgent?: string;
+  modules?: Record<string, boolean>;
   [key: string]: unknown;
 }
 
@@ -198,7 +199,7 @@ export async function executeCrawlerProcess(
               updatedAt: new Date().toISOString(),
             })
           ).catch((err) => console.error("[API] Failed to write progress file:", err));
-        } catch (e) {
+        } catch (_e) {
           // Ignore parse errors for progress
         }
       }

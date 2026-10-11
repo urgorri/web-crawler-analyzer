@@ -156,7 +156,7 @@ export function validateUrl(
       isValid: true,
       url: trimmed,
     };
-  } catch (error) {
+  } catch (_error) {
     return {
       isValid: false,
       reason: 'Invalid URL format.',

@@ -134,10 +134,10 @@ describe('crawl-storage', () => {
       vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
 
       const files = ['crawl1.json', 'crawl2.json', 'crawl1.progress.json', 'other.txt'];
-      // @ts-ignore - mock returning string array for simplicity
+      // @ts-expect-error - mock returning string array for simplicity
       vi.mocked(fsPromises.readdir).mockResolvedValue(files);
 
-      const statMock = vi.mocked(fsPromises.stat).mockResolvedValue({
+      vi.mocked(fsPromises.stat).mockResolvedValue({
         birthtime: new Date('2023-01-01'),
       } as any);
 

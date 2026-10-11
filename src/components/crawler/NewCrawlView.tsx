@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -9,8 +9,6 @@ import {
   Loader2,
   Link2,
   AlertCircle,
-  FileText,
-  Globe,
   CheckCircle2,
   XCircle,
 } from 'lucide-react';
@@ -31,7 +29,6 @@ import {
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Separator } from '@/components/ui/separator';
 
@@ -64,6 +61,8 @@ export default function NewCrawlView() {
   const [headless, setHeadless] = useState(true);
   const [waitForNetwork, setWaitForNetwork] = useState('2000');
   const [userAgent, setUserAgent] = useState('');
+  const [enableTech, setEnableTech] = useState(true);
+  const [enableSecurity, setEnableSecurity] = useState(true);
 
   const urlList = urls
     .split('\n')
@@ -131,11 +130,17 @@ export default function NewCrawlView() {
       concurrency: Number(concurrency) || 2,
       headless,
       waitForNetwork: Number(waitForNetwork) || 2000,
+      modules: {
+        tech: enableTech,
+        'tech-profiler': enableTech,
+        securityHeaders: enableSecurity,
+        'security-headers': enableSecurity,
+      },
     };
     if (userAgent.trim()) cfg.userAgent = userAgent.trim();
 
     mutation.mutate({ urls: urlList, config: cfg, name: crawlName.trim() });
-  }, [urlList, urlErrors, timeout, maxPages, concurrency, headless, waitForNetwork, userAgent, crawlName, mutation]);
+  }, [urlList, urlErrors, scopeErrors, timeout, maxPages, concurrency, headless, waitForNetwork, userAgent, enableTech, enableSecurity, crawlName, mutation]);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -304,6 +309,34 @@ export default function NewCrawlView() {
                   value={userAgent}
                   onChange={(e) => setUserAgent(e.target.value)}
                 />
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <Label className="text-sm font-semibold">Modular Analyzers</Label>
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  <div className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="enableTech" className="text-sm">Tech Profiler</Label>
+                      <p className="text-xs text-muted-foreground">Frameworks, CMS & stack</p>
+                    </div>
+                    <Switch
+                      id="enableTech"
+                      checked={enableTech}
+                      onCheckedChange={setEnableTech}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="enableSecurity" className="text-sm">Security Headers</Label>
+                      <p className="text-xs text-muted-foreground">CSP, HSTS & web safety</p>
+                    </div>
+                    <Switch
+                      id="enableSecurity"
+                      checked={enableSecurity}
+                      onCheckedChange={setEnableSecurity}
+                    />
+                  </div>
+                </div>
               </div>
             </CardContent>
           </CollapsibleContent>

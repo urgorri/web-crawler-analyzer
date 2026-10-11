@@ -2,11 +2,14 @@
   "name": "web-crawler-analyzer",
   "version": "0.2.0",
   "private": true,
+  "workspaces": [
+    "mini-services/*"
+  ],
   "scripts": {
     "prebuild": "npm --prefix mini-services/crawler-service run build",
     "dev": "next dev -p 3000",
-    "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
-    "start": "NODE_ENV=production node .next/standalone/server.js 2>&1 | tee server.log",
+    "build": "next build && node scripts/copy-standalone.mjs",
+    "start": "node .next/standalone/server.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -29,7 +32,6 @@
     "date-fns": "^4.1.0",
     "lucide-react": "^0.525.0",
     "next": "^16.1.1",
-    "playwright": "^1.59.1",
     "radix-ui": "^1.4.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

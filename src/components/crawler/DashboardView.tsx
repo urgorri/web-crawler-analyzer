@@ -1,6 +1,5 @@
 'use client';
 
-import { useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Globe,
@@ -10,8 +9,6 @@ import {
   Trash2,
   Loader2,
   AlertCircle,
-  Clock,
-  ArrowRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';

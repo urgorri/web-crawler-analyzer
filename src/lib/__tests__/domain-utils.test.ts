@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getHostnameFromUrl, getRegistrableDomainFromUrl, getRegistrableDomainFromHostname, isSameRegistrableDomain } from "../domain-utils";
+import { getHostnameFromUrl, getRegistrableDomainFromUrl, isSameRegistrableDomain } from "../domain-utils";
 
 describe("domain-utils", () => {
   describe("getHostnameFromUrl", () => {

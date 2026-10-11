@@ -12,6 +12,7 @@ import {
   executeCrawlerProcess,
   transformCrawlerResults,
 } from "@/lib/crawler/runner";
+import { defaultAnalyzerRegistry, type AnalysisContext } from "@/lib/analyzers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -313,6 +314,32 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
 
     const { pages: transformedPages, stats } = transformCrawlerResults(crawlResult.pages || []);
 
+    let analysisResults: Record<string, unknown> | undefined;
+    if (transformedPages.length > 0) {
+      const firstPage = transformedPages[0];
+      const analysisContext: AnalysisContext = {
+        crawlId,
+        targetUrl: (firstPage.url as string) || urls[0],
+        finalUrl: (firstPage.finalUrl as string) || (firstPage.url as string) || urls[0],
+        domain: seedDomain,
+        statusCode: (firstPage.statusCode as number) || 200,
+        scripts: (firstPage.scripts as string[]) || [],
+        stylesheets: (firstPage.stylesheets as string[]) || [],
+        metaGenerator: (firstPage.metaGenerator as string) || '',
+        networkRequests: (firstPage.network as any[]) || [],
+        html: (firstPage.visibleText as string) || '',
+      };
+
+      try {
+        analysisResults = await defaultAnalyzerRegistry.executeAll(
+          analysisContext,
+          config.modules
+        );
+      } catch (analysisErr) {
+        console.error(`[API] Analysis pipeline error for crawl ${crawlId}:`, analysisErr);
+      }
+    }
+
     try {
       await updateCrawl(crawlId, {
         status: terminalStatus,
@@ -323,6 +350,7 @@ async function runCrawl(crawlId: string, urls: string[], config: CrawlConfig, se
         completedAt: new Date().toISOString(),
         pages: transformedPages,
         domainIntel: crawlResult.domainIntel ?? null,
+        analysisResults,
         avgLoadTimeMs: stats.avgLoadTimeMs,
         minLoadTimeMs: stats.minLoadTimeMs,
         maxLoadTimeMs: stats.maxLoadTimeMs,
