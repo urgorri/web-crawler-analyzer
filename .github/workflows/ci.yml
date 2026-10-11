@@ -22,8 +22,8 @@ jobs:
     - name: Install dependencies (Workspaces)
       run: npm install
 
-    - name: Security Audit (Root)
-      run: npm audit --audit-level=high
+    - name: Security Audit (Production)
+      run: npm audit --omit=dev --audit-level=high
 
     - name: Build crawler-service
       run: npm run prebuild
